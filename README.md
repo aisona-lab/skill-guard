@@ -1,5 +1,7 @@
 # skill-guard
 
+**Beta.** Static pre-install auditor for Agent Skills — not a runtime firewall and not “100% accuracy.” Read [LIMITATIONS.md](LIMITATIONS.md) first.
+
 **Audit Agent Skills before they touch your machine. Deterministic checks. Exit codes. No vibes.**
 
 [![CI](https://github.com/aisona-lab/skill-guard/actions/workflows/ci.yml/badge.svg)](https://github.com/aisona-lab/skill-guard/actions/workflows/ci.yml)
@@ -7,20 +9,28 @@
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![version](https://img.shields.io/badge/version-0.2.1-informational)
 ![status](https://img.shields.io/badge/status-beta-yellow)
+[![PyPI](https://img.shields.io/pypi/v/aisona-skill-guard.svg)](https://pypi.org/project/aisona-skill-guard/)
 
 Pre-install security linter for [Agent Skills](https://agentskills.io/specification) (`SKILL.md` packages). Scans the **whole package** (markdown + scripts) offline. Never executes skill code.
+
+What this **does not** claim: real-world 100% detection, zero false positives, full multi-language AST, or runtime tool-call safety. See [LIMITATIONS.md](LIMITATIONS.md) and honest suites in [docs/BENCHMARKS.md](docs/BENCHMARKS.md).
 
 Part of [aisona-lab](https://github.com/aisona-lab) trust tooling next to [prompt-guard](https://github.com/aisona-lab/prompt-guard), [OrcaI](https://github.com/aisona-lab/OrcaI), [lazycoder](https://github.com/aisona-lab/lazycoder).
 
 ## Install
 
+PyPI distribution name is **`aisona-skill-guard`** (the name `skill-guard` is already taken on PyPI by an unrelated project). The CLI remains `skill-guard`.
+
 ```bash
+pip install aisona-skill-guard
+# or
+uv tool install aisona-skill-guard
+
+skill-guard scan ./path/to/skill
+
+# from source
 uv sync
 uv run skill-guard scan ./path/to/skill
-
-# or
-pip install -e .
-skill-guard scan ./path/to/skill
 ```
 
 ## Usage

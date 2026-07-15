@@ -14,8 +14,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `--sarif-file PATH` for single-pass text + SARIF output
 - Multi-target scans emit **one** merged SARIF document
 - Pre-PyPI packaging metadata (classifiers, Issues/Changelog URLs)
-- `LIMITATIONS.md`
+- `LIMITATIONS.md` (linked from README top — beta honesty)
 - `result_dict` / `render_json_multi` (no JSON serialize/parse round-trip)
+
+### Packaging
+
+- **PyPI name:** `aisona-skill-guard` (PyPI `skill-guard` is a different upstream; CLI entry point remains `skill-guard`)
 
 ### Fixed
 

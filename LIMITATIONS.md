@@ -1,7 +1,12 @@
 # Limitations
 
-skill-guard is a **static, offline** pre-install auditor for Agent Skill packages.
-It does **not** execute skill code and does **not** replace runtime controls.
+**Read this before citing accuracy or deploying as a sole control.**
+
+skill-guard is a **static, offline** pre-install auditor for Agent Skill packages
+(beta). It does **not** execute skill code and does **not** replace runtime controls.
+
+**PyPI note:** install with `pip install aisona-skill-guard`. The PyPI project
+name `skill-guard` belongs to a different package; our CLI is still `skill-guard`.
 
 ## What it does not claim
 

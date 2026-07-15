@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-07-15  
 **Branch:** `main` @ `662c866`  
-**Version in tree:** `0.2.1` (Beta — **not yet published to PyPI**, **no git tag `v0.2.1` yet**)  
+**Version in tree:** `0.2.1` (Beta — PyPI name **`aisona-skill-guard`**; CLI `skill-guard`)  
 **Repo:** https://github.com/aisona-lab/skill-guard  
 **Local path:** `/Users/carlos/Projects and Agents/skill-guard`
 

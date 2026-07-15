@@ -1,5 +1,7 @@
 [project]
-name = "skill-guard"
+# Distribution name (PyPI). CLI entry point stays `skill-guard`.
+# Note: pypi.org/project/skill-guard/ is a different, unrelated package.
+name = "aisona-skill-guard"
 version = "0.2.1"
 description = "Audit Agent Skills and packages before they touch your machine. Deterministic checks. Exit codes. No vibes."
 readme = "README.md"
@@ -15,6 +17,7 @@ keywords = [
     "claude-code",
     "mcp",
     "linter",
+    "skill-guard",
 ]
 classifiers = [
     "Development Status :: 4 - Beta",

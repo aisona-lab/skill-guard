@@ -7,7 +7,7 @@ Deterministic **pre-install** auditor for [Agent Skills](https://agentskills.io/
 `ALLOW=0 / WARN=1 / BLOCK=2`.
 
 **Status (2026-07-15):** `0.2.1` Beta on `main`. Architecture + OOD gates + packaging
-hygiene done. **PyPI publish + `v0.2.1` tag still pending.**
+hygiene done. PyPI distribution name is **`aisona-skill-guard`** (not `skill-guard` — name taken).
 
 Full handoff for a new session: **`docs/NEXT-SESSION.md`**.
 
