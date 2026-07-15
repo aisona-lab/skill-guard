@@ -47,12 +47,21 @@ _PERMISSION_PATTERNS: list[tuple[Severity, re.Pattern[str], str]] = [
 
 _POLICY_PATTERNS: list[tuple[Severity, re.Pattern[str], str]] = [
     (
+        # Bare docs mentions of GITHUB_TOKEN are common in legitimate skills.
+        # Critical only for Actions secret expansion or explicit AWS secret key name
+        # in assignment-like contexts handled elsewhere; keep expansion critical.
         Severity.CRITICAL,
         re.compile(
-            r"(?i)(\$\{\{\s*secrets\.|GITHUB_TOKEN|AWS_SECRET_ACCESS_KEY|"
-            r"AZURE_CLIENT_SECRET|GCLOUD_SERVICE_KEY)"
+            r"(?i)(\$\{\{\s*secrets\.[A-Za-z0-9_]+\s*\}\}|AWS_SECRET_ACCESS_KEY\s*=)"
         ),
-        "CI / cloud secret material reference",
+        "CI secret expansion or AWS secret key assignment",
+    ),
+    (
+        Severity.MEDIUM,
+        re.compile(
+            r"(?i)\b(GITHUB_TOKEN|AZURE_CLIENT_SECRET|GCLOUD_SERVICE_KEY)\b"
+        ),
+        "CI / cloud secret identifier mentioned",
     ),
     (
         Severity.HIGH,

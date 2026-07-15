@@ -28,3 +28,5 @@ jobs:
         run: uv run python eval/run_eval.py --suite core --check --details
       - name: Adversarial eval gates
         run: uv run python eval/run_eval.py --suite adversarial --check --details
+      - name: OOD eval gates (real-world safe skills FPR)
+        run: uv run python eval/run_eval.py --suite ood --check --details

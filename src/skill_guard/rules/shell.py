@@ -253,8 +253,21 @@ class _WholeRule:
 
 
 def _w_setuid(text: str) -> str | None:
-    m = re.search(r"(?i)\bchmod\s+(?:[0-7]*[46][0-7]{2,3}|\+s|--setuid)\b", text)
-    return m.group(0) if m else None
+    # Only setuid/setgid/sticky (4-digit modes 4xxx-7xxx) or explicit +s.
+    # Do NOT match chmod 600/644/755 (common hardening, not setuid).
+    m = re.search(
+        r"(?i)\bchmod\s+(?:[ugoa]*\+s|--setuid|0?[4-7][0-7]{3})\b",
+        text,
+    )
+    if not m:
+        return None
+    # 0755 / 0755-like: first of 4 digits must indicate special bits (4-7)
+    token = m.group(0)
+    digits = re.search(r"([0-7]{3,4})\b", token)
+    if digits and len(digits.group(1)) == 3:
+        # three-digit modes are never setuid
+        return None
+    return token
 
 
 def _w_docker_sock(text: str) -> str | None:

@@ -17,7 +17,7 @@ _FETCH_POST = re.compile(
 )
 _CHILD_EXEC = re.compile(
     r"(?i)(child_process|execSync|exec\(|spawn\()"
-    r"[^\n]{0,120}(curl|wget|\.ssh|\.env|bash|sh\b)"
+    r"[^\n]{0,120}(curl\b|wget\b|\.ssh/|readFileSync\([^\)]*\.env|bash\s+-c|\|\s*(ba)?sh\b)"
 )
 _ENV_BODY = re.compile(
     r"(?i)(readFileSync|readFile)\([^\)]*\.env[^\)]*\)[^;]{0,120}"

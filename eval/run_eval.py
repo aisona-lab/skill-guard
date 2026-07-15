@@ -1,8 +1,8 @@
-"""Dataset eval harness — regression + adversarial gates.
+"""Dataset eval harness — core + adversarial + OOD gates.
 
   uv run python eval/run_eval.py --check
-  uv run python eval/run_eval.py --suite adversarial --check
-  uv run python eval/run_eval.py --suite all --check --details
+  uv run python eval/run_eval.py --suite ood --check --details
+  uv run python eval/run_eval.py --suite all --check
 """
 
 from __future__ import annotations
@@ -18,14 +18,19 @@ sys.path.insert(0, str(ROOT / "src"))
 from skill_guard.engine import scan_path  # noqa: E402
 from skill_guard.models import Verdict  # noqa: E402
 
-# Regression gates (self-authored fixtures — not an external accuracy claim)
+# Regression (hand-written fixtures)
 MIN_UNSAFE_RECALL = 0.95
 MIN_RULE_RECALL = 0.90
 MAX_SAFE_FPR = 0.05
 
-# Adversarial gates (independent attack suite — production bar)
+# Adversarial (independent attack suite)
 MIN_ADV_ATTACK_RECALL = 0.75
 MAX_ADV_SAFE_FPR = 0.05
+
+# OOD: real-world skills labeled safe (primary metric = false BLOCK rate)
+# Honest bar: we measure FPR on packages we did not write.
+MAX_OOD_SAFE_FPR = 0.05
+MIN_OOD_SAFE_COUNT = 40  # refuse empty/too-small OOD
 
 
 def load_catalog(path: Path) -> list[dict]:
@@ -38,23 +43,14 @@ def load_catalog(path: Path) -> list[dict]:
     return rows
 
 
-def evaluate(rows: list[dict], *, label_filter: str | None = None) -> dict:
+def evaluate(rows: list[dict]) -> dict:
     details = []
     unsafe_total = unsafe_blocked = 0
     rule_hits = rule_total = 0
     safe_total = safe_blocked = 0
+    warn_on_safe = 0
 
     for row in rows:
-        if label_filter == "adversarial" and row.get("tier") != "adversarial":
-            continue
-        if label_filter == "core" and row.get("tier") not in {None, "core"}:
-            # core catalog only
-            if row.get("tier") == "adversarial":
-                continue
-        if row.get("tier") == "soft" or row.get("label") == "borderline":
-            if label_filter != "all":
-                continue
-
         path = ROOT / "dataset" / row["path"]
         if not path.exists():
             details.append({**row, "error": f"missing {path}", "actual_verdict": "ERROR"})
@@ -65,6 +61,7 @@ def evaluate(rows: list[dict], *, label_filter: str | None = None) -> dict:
             "id": row["id"],
             "label": row["label"],
             "tier": row.get("tier", "core"),
+            "source": row.get("source"),
             "expected_verdict": row["expected_verdict"],
             "actual_verdict": result.verdict.value,
             "expected_rules": row.get("expected_rules", []),
@@ -86,6 +83,8 @@ def evaluate(rows: list[dict], *, label_filter: str | None = None) -> dict:
             safe_total += 1
             if result.verdict is Verdict.BLOCK:
                 safe_blocked += 1
+            if result.verdict is Verdict.WARN:
+                warn_on_safe += 1
 
     metrics = {
         "unsafe_total": unsafe_total,
@@ -97,6 +96,8 @@ def evaluate(rows: list[dict], *, label_filter: str | None = None) -> dict:
         "safe_total": safe_total,
         "safe_blocked": safe_blocked,
         "safe_fpr": (safe_blocked / safe_total) if safe_total else 0.0,
+        "warn_on_safe": warn_on_safe,
+        "warn_rate_on_safe": (warn_on_safe / safe_total) if safe_total else 0.0,
     }
     return {"metrics": metrics, "details": details}
 
@@ -123,6 +124,17 @@ def gates_adv(m: dict) -> list[str]:
     return fails
 
 
+def gates_ood(m: dict) -> list[str]:
+    fails = []
+    if m["safe_total"] < MIN_OOD_SAFE_COUNT:
+        fails.append(
+            f"ood safe_total {m['safe_total']} < {MIN_OOD_SAFE_COUNT} (corpus too small)"
+        )
+    if m["safe_fpr"] > MAX_OOD_SAFE_FPR:
+        fails.append(f"ood safe_fpr {m['safe_fpr']:.3f} > {MAX_OOD_SAFE_FPR}")
+    return fails
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="skill-guard dataset eval")
     ap.add_argument("--check", action="store_true", help="exit 1 if gates fail")
@@ -130,22 +142,18 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--details", action="store_true")
     ap.add_argument(
         "--suite",
-        choices=["core", "adversarial", "all"],
+        choices=["core", "adversarial", "ood", "all"],
         default="all",
-        help="which catalogs to evaluate",
     )
     args = ap.parse_args(argv)
 
-    reports = {}
+    reports: dict = {}
     fails: list[str] = []
 
     if args.suite in {"core", "all"}:
-        core_cat = ROOT / "dataset" / "catalog.jsonl"
-        core = evaluate(load_catalog(core_cat), label_filter="core")
-        # filter only core tier rows from main catalog
         core_rows = [
             r
-            for r in load_catalog(core_cat)
+            for r in load_catalog(ROOT / "dataset" / "catalog.jsonl")
             if r.get("tier", "core") == "core" and r.get("label") != "borderline"
         ]
         core = evaluate(core_rows)
@@ -163,24 +171,40 @@ def main(argv: list[str] | None = None) -> int:
         if args.check:
             fails.extend(gates_adv(adv["metrics"]))
 
+    if args.suite in {"ood", "all"}:
+        ood_cat = ROOT / "dataset" / "ood_catalog.jsonl"
+        if not ood_cat.is_file():
+            print(f"error: missing {ood_cat}", file=sys.stderr)
+            return 2
+        ood = evaluate(load_catalog(ood_cat))
+        reports["ood"] = ood
+        if args.check:
+            fails.extend(gates_ood(ood["metrics"]))
+
     if args.json:
         print(json.dumps(reports, indent=2))
     else:
         for name, rep in reports.items():
             m = rep["metrics"]
             print(f"skill-guard eval ({name})")
+            if m["unsafe_total"]:
+                print(
+                    f"  attack/unsafe_recall: {m['unsafe_recall']:.3f} "
+                    f"({m['unsafe_blocked']}/{m['unsafe_total']})"
+                )
+                print(
+                    f"  rule_recall:          {m['rule_recall']:.3f} "
+                    f"({m['rule_hits']}/{m['rule_total']})"
+                )
             print(
-                f"  attack/unsafe_recall: {m['unsafe_recall']:.3f} "
-                f"({m['unsafe_blocked']}/{m['unsafe_total']})"
-            )
-            print(
-                f"  rule_recall:          {m['rule_recall']:.3f} "
-                f"({m['rule_hits']}/{m['rule_total']})"
-            )
-            print(
-                f"  safe_fpr:             {m['safe_fpr']:.3f} "
+                f"  safe_fpr (BLOCK):     {m['safe_fpr']:.3f} "
                 f"({m['safe_blocked']}/{m['safe_total']} blocked)"
             )
+            if m.get("warn_on_safe"):
+                print(
+                    f"  warn_rate on safe:    {m['warn_rate_on_safe']:.3f} "
+                    f"({m['warn_on_safe']}/{m['safe_total']})  # not a hard gate"
+                )
             if args.details:
                 for d in rep["details"]:
                     mark = "ok"
