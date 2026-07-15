@@ -1,0 +1,57 @@
+"""Human and JSON report rendering."""
+
+from __future__ import annotations
+
+import json
+
+from skill_guard.models import ScanResult, Severity
+
+_SEV_ORDER = {
+    Severity.CRITICAL: 0,
+    Severity.HIGH: 1,
+    Severity.MEDIUM: 2,
+    Severity.LOW: 3,
+}
+
+
+def render_text(result: ScanResult) -> str:
+    lines: list[str] = []
+    lines.append(f"skill-guard  verdict={result.verdict.value}  exit={result.exit_code}")
+    lines.append(f"target: {result.target}")
+    if result.skill_name:
+        lines.append(f"skill:  {result.skill_name}")
+    lines.append(f"files:  {result.files_scanned}  rules: {', '.join(result.rules_run)}")
+    lines.append("")
+
+    if not result.findings:
+        lines.append("No findings.")
+        return "\n".join(lines)
+
+    ordered = sorted(result.findings, key=lambda f: (_SEV_ORDER[f.severity], f.rule_id.value))
+    for f in ordered:
+        loc = f.path or ""
+        if f.line:
+            loc = f"{loc}:{f.line}" if loc else f"line {f.line}"
+        head = f"[{f.severity.value.upper():8}] {f.rule_id.value}  {f.title}"
+        lines.append(head)
+        if loc:
+            lines.append(f"  at: {loc}")
+        lines.append(f"  {f.message}")
+        if f.evidence:
+            lines.append(f"  evidence: {f.evidence}")
+        if f.remediation:
+            lines.append(f"  fix: {f.remediation}")
+        lines.append("")
+
+    counts: dict[str, int] = {}
+    for f in result.findings:
+        counts[f.severity.value] = counts.get(f.severity.value, 0) + 1
+    summary = ", ".join(f"{k}={v}" for k, v in sorted(counts.items()))
+    lines.append(f"{len(result.findings)} finding(s): {summary}")
+    return "\n".join(lines)
+
+
+def render_json(result: ScanResult) -> str:
+    payload = result.model_dump(mode="json")
+    payload["exit_code"] = result.exit_code
+    return json.dumps(payload, indent=2, ensure_ascii=False)

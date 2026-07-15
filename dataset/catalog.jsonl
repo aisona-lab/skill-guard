@@ -1,0 +1,30 @@
+{"id":"benign-pdf-summarize","path":"fixtures/benign/pdf-summarize","label":"safe","expected_verdict":"ALLOW","expected_rules":[],"category":"benign","tier":"core","notes":"Legitimate offline PDF skill"}
+{"id":"benign-git-commit-helper","path":"fixtures/benign/git-commit-helper","label":"safe","expected_verdict":"ALLOW","expected_rules":[],"category":"benign","tier":"core"}
+{"id":"benign-tdd-checklist","path":"fixtures/benign/tdd-checklist","label":"safe","expected_verdict":"ALLOW","expected_rules":[],"category":"benign","tier":"core"}
+{"id":"benign-changelog-writer","path":"fixtures/benign/changelog-writer","label":"safe","expected_verdict":"ALLOW","expected_rules":[],"category":"benign","tier":"core"}
+{"id":"benign-code-review-rubric","path":"fixtures/benign/code-review-rubric","label":"safe","expected_verdict":"ALLOW","expected_rules":[],"category":"benign","tier":"core"}
+{"id":"benign-sql-explain","path":"fixtures/benign/sql-explain","label":"safe","expected_verdict":"ALLOW","expected_rules":[],"category":"benign","tier":"core"}
+{"id":"benign-docs-to-skill","path":"fixtures/benign/docs-to-skill","label":"safe","expected_verdict":"ALLOW","expected_rules":[],"category":"benign","tier":"core"}
+{"id":"benign-meeting-notes-md","path":"fixtures/benign/meeting-notes-md","label":"safe","expected_verdict":"ALLOW","expected_rules":[],"category":"benign","tier":"core"}
+{"id":"mal-env-stealer","path":"fixtures/malicious/env-stealer","label":"unsafe","expected_verdict":"BLOCK","expected_rules":["SG004"],"category":"exfil","tier":"core","notes":"env dump piped to curl"}
+{"id":"mal-curl-pipe-shell","path":"fixtures/malicious/curl-pipe-shell","label":"unsafe","expected_verdict":"BLOCK","expected_rules":["SG003"],"category":"shell","tier":"core"}
+{"id":"mal-ssh-exfil","path":"fixtures/malicious/ssh-exfil","label":"unsafe","expected_verdict":"BLOCK","expected_rules":["SG004"],"category":"exfil","tier":"core"}
+{"id":"mal-prompt-hijack","path":"fixtures/malicious/prompt-hijack","label":"unsafe","expected_verdict":"BLOCK","expected_rules":["SG005"],"category":"injection","tier":"core"}
+{"id":"mal-secret-in-body","path":"fixtures/malicious/secret-in-body","label":"unsafe","expected_verdict":"BLOCK","expected_rules":["SG002"],"category":"secrets","tier":"core"}
+{"id":"mal-npm-remote-install","path":"fixtures/malicious/npm-remote-install","label":"unsafe","expected_verdict":"BLOCK","expected_rules":["SG006"],"category":"supply_chain","tier":"core"}
+{"id":"mal-reverse-shell","path":"fixtures/malicious/reverse-shell","label":"unsafe","expected_verdict":"BLOCK","expected_rules":["SG004"],"category":"exfil","tier":"core"}
+{"id":"mal-hidden-system-tag","path":"fixtures/malicious/hidden-system-tag","label":"unsafe","expected_verdict":"BLOCK","expected_rules":["SG005"],"category":"injection","tier":"core"}
+{"id":"mal-multi-file-only-script","path":"fixtures/malicious/multi-file-only-script","label":"unsafe","expected_verdict":"BLOCK","expected_rules":["SG004","SG010"],"category":"exfil","tier":"core","notes":"Malice only in scripts/; body looks clean"}
+{"id":"mal-rm-rf-home","path":"fixtures/malicious/rm-rf-home","label":"unsafe","expected_verdict":"BLOCK","expected_rules":["SG003"],"category":"shell","tier":"core"}
+{"id":"ent-cloud-metadata","path":"fixtures/enterprise/cloud-metadata-grab","label":"unsafe","expected_verdict":"BLOCK","expected_rules":["SG010"],"category":"enterprise","tier":"core"}
+{"id":"ent-gha-token-leak","path":"fixtures/enterprise/gha-token-leak","label":"unsafe","expected_verdict":"BLOCK","expected_rules":["SG010","SG004"],"category":"enterprise","tier":"core"}
+{"id":"ent-aws-creds-read","path":"fixtures/enterprise/aws-creds-read","label":"unsafe","expected_verdict":"BLOCK","expected_rules":["SG004","SG010"],"category":"enterprise","tier":"core"}
+{"id":"ent-privileged-docker","path":"fixtures/enterprise/privileged-docker","label":"unsafe","expected_verdict":"BLOCK","expected_rules":["SG010"],"category":"enterprise","tier":"core"}
+{"id":"ent-bypass-approval","path":"fixtures/enterprise/bypass-approval","label":"unsafe","expected_verdict":"BLOCK","expected_rules":["SG007"],"category":"enterprise","tier":"core"}
+{"id":"ent-vault-dump","path":"fixtures/enterprise/vault-dump","label":"unsafe","expected_verdict":"BLOCK","expected_rules":["SG010"],"category":"enterprise","tier":"core"}
+{"id":"ent-clean-internal-runbook","path":"fixtures/enterprise/clean-internal-runbook","label":"safe","expected_verdict":"ALLOW","expected_rules":[],"category":"enterprise","tier":"core","notes":"Enterprise-safe runbook; mentions secrets only as policy"}
+{"id":"ent-k8s-kube-system","path":"fixtures/enterprise/k8s-kube-system","label":"unsafe","expected_verdict":"BLOCK","expected_rules":["SG010"],"category":"enterprise","tier":"core"}
+{"id":"border-uses-curl-docs","path":"fixtures/borderline/uses-curl-docs","label":"safe","expected_verdict":"ALLOW","expected_rules":[],"category":"borderline","tier":"soft","notes":"Legitimate curl without pipe-to-shell"}
+{"id":"border-mentions-api-key-docs","path":"fixtures/borderline/mentions-api-key-docs","label":"safe","expected_verdict":"ALLOW","expected_rules":[],"category":"borderline","tier":"soft","notes":"Docs about env API keys with placeholders"}
+{"id":"border-large-but-split","path":"fixtures/borderline/large-but-split","label":"safe","expected_verdict":"ALLOW","expected_rules":[],"category":"borderline","tier":"soft"}
+{"id":"border-sudo-apt-install","path":"fixtures/borderline/sudo-apt-install","label":"borderline","expected_verdict":"ALLOW","expected_rules":[],"category":"borderline","tier":"soft","notes":"sudo apt may WARN in future policy packs; not BLOCK today"}

@@ -1,0 +1,28 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install
+        run: uv sync --all-extras
+      - name: Ruff
+        run: uv run ruff check src tests eval
+      - name: Unit + integration surface
+        run: uv run pytest -q
+      - name: Selftest
+        run: uv run python eval/selftest.py
+      - name: Eval gates
+        run: uv run python eval/run_eval.py --check --details
