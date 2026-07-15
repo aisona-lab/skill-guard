@@ -5,7 +5,8 @@
 [![CI](https://github.com/aisona-lab/skill-guard/actions/workflows/ci.yml/badge.svg)](https://github.com/aisona-lab/skill-guard/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-3.12%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
-![version](https://img.shields.io/badge/version-0.2.0-informational)
+![version](https://img.shields.io/badge/version-0.2.1-informational)
+![status](https://img.shields.io/badge/status-beta-yellow)
 
 Pre-install security linter for [Agent Skills](https://agentskills.io/specification) (`SKILL.md` packages). Scans the **whole package** (markdown + scripts) offline. Never executes skill code.
 
@@ -79,7 +80,8 @@ Paths are **newline-separated** (not space-split), so paths with spaces work:
     sarif_file: skill-guard.sarif
 ```
 
-Limitations and non-claims: [`LIMITATIONS.md`](LIMITATIONS.md). Changelog: [`CHANGELOG.md`](CHANGELOG.md).
+Limitations and non-claims: [`LIMITATIONS.md`](LIMITATIONS.md). Changelog: [`CHANGELOG.md`](CHANGELOG.md).  
+Next-session handoff (agents/humans): [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md).
 
 ## What it checks
 
