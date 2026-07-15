@@ -43,7 +43,7 @@ jobs:
       - name: Smoke install from wheel
         run: |
           set -euo pipefail
-          WHEEL=$(ls dist/skill_guard-*.whl | head -1)
+          WHEEL=$(ls dist/aisona_skill_guard-*.whl | head -1)
           uvx --from "$WHEEL" skill-guard --version
           uvx --from "$WHEEL" skill-guard scan dataset/fixtures/benign/tdd-checklist --fail-on block
           set +e
