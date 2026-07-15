@@ -3,6 +3,8 @@
 **Last updated:** 2026-07-15  
 **Branch:** `main` @ `662c866`  
 **Version in tree:** `0.2.1` (Beta — PyPI name **`aisona-skill-guard`**; CLI `skill-guard`)  
+**Git tag / release:** `v0.2.1` published on GitHub  
+**PyPI:** **pending credentials** (`UV_PUBLISH_TOKEN` / trusted publisher) — dist name must be `aisona-skill-guard` (`skill-guard` is taken on PyPI by unrelated project)  
 **Repo:** https://github.com/aisona-lab/skill-guard  
 **Local path:** `/Users/carlos/Projects and Agents/skill-guard`
 
@@ -10,7 +12,7 @@
 
 ## One-line status
 
-Deterministic pre-install auditor for Agent Skills is **feature-complete for a beta release**: PackageContext architecture, detectors, adversarial + OOD gates, packaging hygiene, Action path fix, JSON cleanup. **Next human action is publish + tag**, then product growth (policy packs / fence-lang), not more demo code.
+Beta **tagged and released on GitHub** (`v0.2.1`). README leads with LIMITATIONS. Wheel/sdist built as `aisona-skill-guard`. **PyPI upload still needs an API token** on this machine. After publish: announce honestly; backlog is policy packs / fence-lang / anti-gaming metrics — not demo features.
 
 ---
 
