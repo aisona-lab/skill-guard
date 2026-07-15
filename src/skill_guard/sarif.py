@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import Any
 
 from skill_guard import __version__
@@ -40,10 +41,10 @@ def to_sarif_multi(results: list[ScanResult]) -> dict[str, Any]:
                     "defaultConfiguration": {"level": _LEVEL[f.severity]},
                     "help": {"text": f.remediation or f.message},
                 }
-            uri = f.path or result.target
-            # Disambiguate multi-target scans: prefix with target when path is relative
-            if len(results) > 1 and f.path:
-                uri = f"{result.target}/{f.path}".replace("//", "/")
+            if f.path and len(results) > 1:
+                uri = (Path(result.target) / f.path).as_posix()
+            else:
+                uri = f.path or result.target
             loc: dict[str, Any] = {
                 "physicalLocation": {
                     "artifactLocation": {"uri": uri},

@@ -10,14 +10,13 @@ Exit codes (CI contract):
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 from pathlib import Path
 
 from skill_guard import __version__
 from skill_guard.config import load_config
 from skill_guard.engine import scan_many
-from skill_guard.report import render_json, render_text
+from skill_guard.report import render_json_multi, render_text
 from skill_guard.sarif import render_sarif_multi
 
 
@@ -99,11 +98,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.sarif:
         print(render_sarif_multi(results))
     elif args.json:
-        if len(results) == 1:
-            print(render_json(results[0]))
-        else:
-            payload = [json.loads(render_json(r)) for r in results]
-            print(json.dumps(payload, indent=2, ensure_ascii=False))
+        print(render_json_multi(results))
     else:
         for i, result in enumerate(results):
             print(render_text(result))

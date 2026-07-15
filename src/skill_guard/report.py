@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from typing import Any
 
 from skill_guard.models import ScanResult, Severity
 
@@ -12,6 +13,13 @@ _SEV_ORDER = {
     Severity.MEDIUM: 2,
     Severity.LOW: 3,
 }
+
+
+def result_dict(result: ScanResult) -> dict[str, Any]:
+    """Canonical JSON-serializable scan result (includes exit_code)."""
+    payload = result.model_dump(mode="json")
+    payload["exit_code"] = result.exit_code
+    return payload
 
 
 def render_text(result: ScanResult) -> str:
@@ -27,7 +35,9 @@ def render_text(result: ScanResult) -> str:
         lines.append("No findings.")
         return "\n".join(lines)
 
-    ordered = sorted(result.findings, key=lambda f: (_SEV_ORDER[f.severity], f.rule_id.value))
+    ordered = sorted(
+        result.findings, key=lambda f: (_SEV_ORDER[f.severity], f.rule_id.value)
+    )
     for f in ordered:
         loc = f.path or ""
         if f.line:
@@ -52,6 +62,14 @@ def render_text(result: ScanResult) -> str:
 
 
 def render_json(result: ScanResult) -> str:
-    payload = result.model_dump(mode="json")
-    payload["exit_code"] = result.exit_code
-    return json.dumps(payload, indent=2, ensure_ascii=False)
+    """JSON for a single scan target."""
+    return json.dumps(result_dict(result), indent=2, ensure_ascii=False)
+
+
+def render_json_multi(results: list[ScanResult]) -> str:
+    """JSON for one or more targets (always a list when multi; single object when one)."""
+    if len(results) == 1:
+        return render_json(results[0])
+    return json.dumps(
+        [result_dict(r) for r in results], indent=2, ensure_ascii=False
+    )

@@ -7,7 +7,13 @@ branding:
 
 inputs:
   path:
-    description: Path to skill directory (or multiple space-separated paths)
+    description: >
+      One skill path, or multiple paths separated by newlines (not spaces).
+      Paths may contain spaces. Prefer a YAML block scalar for multi-path:
+
+        path: |
+          ./skills/foo
+          ./skills/bar with spaces
     required: true
     default: .
   fail-on:
@@ -31,12 +37,30 @@ runs:
       run: pip install "${{ github.action_path }}"
     - name: Scan
       shell: bash
+      env:
+        # Preserve newlines / spaces; never word-split inputs.path
+        SKILL_GUARD_PATHS: ${{ inputs.path }}
+        SKILL_GUARD_FAIL_ON: ${{ inputs.fail-on }}
+        SKILL_GUARD_SARIF: ${{ inputs.sarif }}
       run: |
         set -euo pipefail
-        # shellcheck disable=SC2206
-        PATHS=(${{ inputs.path }})
-        ARGS=(scan "${PATHS[@]}" --fail-on "${{ inputs.fail-on }}")
-        if [ -n "${{ inputs.sarif }}" ]; then
-          ARGS+=(--sarif-file "${{ inputs.sarif }}")
+
+        PATHS=()
+        while IFS= read -r line || [[ -n "${line:-}" ]]; do
+          # trim leading/trailing whitespace only
+          line="${line#"${line%%[![:space:]]*}"}"
+          line="${line%"${line##*[![:space:]]}"}"
+          [[ -z "$line" ]] && continue
+          PATHS+=("$line")
+        done <<< "$SKILL_GUARD_PATHS"
+
+        if [[ ${#PATHS[@]} -eq 0 ]]; then
+          echo "error: no skill paths provided in inputs.path" >&2
+          exit 3
+        fi
+
+        ARGS=(scan "${PATHS[@]}" --fail-on "$SKILL_GUARD_FAIL_ON")
+        if [[ -n "${SKILL_GUARD_SARIF}" ]]; then
+          ARGS+=(--sarif-file "$SKILL_GUARD_SARIF")
         fi
         skill-guard "${ARGS[@]}"
