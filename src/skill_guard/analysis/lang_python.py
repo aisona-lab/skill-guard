@@ -63,7 +63,7 @@ def analyze_python(content: str, relpath: str) -> list[Finding]:
             if pp.regex.search(path):
                 findings.append(
                     _f(
-                        Severity.CRITICAL if pp.severity == "critical" else Severity.HIGH,
+                        pp.severity if pp.severity is Severity.CRITICAL else Severity.HIGH,
                         f"Python open() of sensitive path ({pp.id})",
                         relpath,
                         path[:120],

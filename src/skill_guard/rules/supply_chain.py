@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 
-from skill_guard.models import Finding, RuleId, Severity, SkillPackage
+from skill_guard.models import Finding, PackageContext, RuleId, Severity
 
 _PATTERNS: list[tuple[Severity, re.Pattern[str], str, str]] = [
     (
@@ -67,11 +67,12 @@ _PATTERNS: list[tuple[Severity, re.Pattern[str], str, str]] = [
 ]
 
 
-def check(pkg: SkillPackage) -> list[Finding]:
+def check(pkg: PackageContext) -> list[Finding]:
     findings: list[Finding] = []
     for f in pkg.files:
+        text = f.normalized
         for severity, pattern, title, remediation in _PATTERNS:
-            for m in pattern.finditer(f.content):
+            for m in pattern.finditer(text):
                 findings.append(
                     Finding(
                         rule_id=RuleId.SG006,
@@ -79,7 +80,7 @@ def check(pkg: SkillPackage) -> list[Finding]:
                         title=title,
                         message=f"Supply-chain risk in `{f.relpath}`.",
                         path=f.relpath,
-                        line=f.content.count("\n", 0, m.start()) + 1,
+                        line=text.count("\n", 0, m.start()) + 1,
                         evidence=m.group(0)[:120],
                         remediation=remediation,
                     )

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import re
 
-from skill_guard.models import Finding, RuleId, Severity, SkillPackage
+from skill_guard.models import FileKind, Finding, PackageContext, RuleId, Severity
 
 _PATTERNS: list[tuple[Severity, re.Pattern[str], str]] = [
     (
@@ -48,19 +48,18 @@ _PATTERNS: list[tuple[Severity, re.Pattern[str], str]] = [
 ]
 
 
-def check(pkg: SkillPackage) -> list[Finding]:
+def check(pkg: PackageContext) -> list[Finding]:
     findings: list[Finding] = []
-    # Focus on instructional surfaces: SKILL.md body + markdown references.
-    targets = []
-    if pkg.skill_md:
-        targets.append(pkg.skill_md)
-    for f in pkg.files:
-        if f.suffix in {".md", ".txt"} and f is not pkg.skill_md:
-            targets.append(f)
-
+    # Instructional surfaces only: markdown (and skill body).
+    targets = [
+        f
+        for f in pkg.files
+        if f.kind is FileKind.MARKDOWN or f.suffix in {".md", ".txt"}
+    ]
     for f in targets:
+        text = f.normalized
         for severity, pattern, title in _PATTERNS:
-            for m in pattern.finditer(f.content):
+            for m in pattern.finditer(text):
                 findings.append(
                     Finding(
                         rule_id=RuleId.SG005,
@@ -68,7 +67,7 @@ def check(pkg: SkillPackage) -> list[Finding]:
                         title=title,
                         message=f"Skill content may hijack the host agent (`{f.relpath}`).",
                         path=f.relpath,
-                        line=f.content.count("\n", 0, m.start()) + 1,
+                        line=text.count("\n", 0, m.start()) + 1,
                         evidence=m.group(0)[:120],
                         remediation="Remove override/hidden-system language from skill instructions.",
                     )

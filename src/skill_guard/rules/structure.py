@@ -8,12 +8,12 @@ from __future__ import annotations
 
 import re
 
-from skill_guard.models import Finding, RuleId, Severity, SkillPackage
+from skill_guard.models import Finding, PackageContext, RuleId, Severity
 
 _NAME_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 
 
-def check(pkg: SkillPackage) -> list[Finding]:
+def check(pkg: PackageContext) -> list[Finding]:
     findings: list[Finding] = []
 
     for err in pkg.parse_errors:

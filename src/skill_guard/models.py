@@ -2,6 +2,9 @@
 
 Verdict/exit codes mirror lab convention (lazycoder): machine-readable gates.
 Severities drive aggregation; rule IDs are stable for datasets and suppressions.
+
+PackageContext is the single type rules consume: files are pre-normalized so
+rules never re-run normalize/extract themselves.
 """
 
 from __future__ import annotations
@@ -45,6 +48,17 @@ class RuleId(StrEnum):
     SG010 = "SG010"  # enterprise policy
 
 
+class FileKind(StrEnum):
+    """Coarse kind for language-aware analysis. From extension / shebang only."""
+
+    MARKDOWN = "markdown"
+    PYTHON = "python"
+    JAVASCRIPT = "javascript"
+    POWERSHELL = "powershell"
+    SHELL = "shell"
+    OTHER = "other"
+
+
 class Finding(BaseModel):
     """One concrete issue found in a skill package."""
 
@@ -60,11 +74,54 @@ class Finding(BaseModel):
     )
     remediation: str | None = None
 
+    def identity(self) -> tuple[Any, ...]:
+        """Stable key for deduplication."""
+        return (self.rule_id, self.path, self.title, self.line, self.message, self.evidence)
+
     def redacted(self) -> Finding:
         """Return a copy safe for logs (truncate evidence)."""
         if self.evidence and len(self.evidence) > 120:
             return self.model_copy(update={"evidence": self.evidence[:117] + "..."})
         return self
+
+
+def make_finding(
+    rule_id: RuleId,
+    severity: Severity,
+    *,
+    title: str,
+    path: str | None = None,
+    message: str | None = None,
+    evidence: str | None = None,
+    remediation: str | None = None,
+    line: int | None = None,
+) -> Finding:
+    """Canonical Finding constructor used by all rules."""
+    ev = evidence[:120] if evidence and len(evidence) > 120 else evidence
+    msg = message or f"{title} in `{path}`." if path else title
+    return Finding(
+        rule_id=rule_id,
+        severity=severity,
+        title=title,
+        message=msg,
+        path=path,
+        line=line,
+        evidence=ev,
+        remediation=remediation,
+    )
+
+
+def dedupe_findings(findings: list[Finding]) -> list[Finding]:
+    """Drop exact duplicate findings (same identity key)."""
+    seen: set[tuple[Any, ...]] = set()
+    out: list[Finding] = []
+    for f in findings:
+        key = f.identity()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(f)
+    return out
 
 
 class ScanResult(BaseModel):
@@ -94,7 +151,12 @@ def aggregate_verdict(findings: list[Finding]) -> Verdict:
     """Map findings → verdict. Conservative: any high/critical blocks."""
     if not findings:
         return Verdict.ALLOW
-    ranks = {Severity.LOW: 1, Severity.MEDIUM: 2, Severity.HIGH: 3, Severity.CRITICAL: 4}
+    ranks = {
+        Severity.LOW: 1,
+        Severity.MEDIUM: 2,
+        Severity.HIGH: 3,
+        Severity.CRITICAL: 4,
+    }
     worst = max(ranks[f.severity] for f in findings)
     if worst >= ranks[Severity.HIGH]:
         return Verdict.BLOCK
@@ -103,12 +165,15 @@ def aggregate_verdict(findings: list[Finding]) -> Verdict:
     return Verdict.ALLOW
 
 
-class SkillFile(BaseModel):
-    """One text file from a skill package (never executed)."""
+class AnalyzedFile(BaseModel):
+    """One package file after single-pass normalization (never executed)."""
 
     relpath: str
     content: str
     size: int
+    normalized: str
+    candidates: tuple[str, ...]
+    kind: FileKind
 
     @property
     def suffix(self) -> str:
@@ -119,17 +184,22 @@ class SkillFile(BaseModel):
         p = self.relpath.replace("\\", "/").lower()
         if p.startswith("scripts/") or "/scripts/" in f"/{p}":
             return True
-        return self.suffix in {".sh", ".bash", ".zsh", ".ps1", ".py", ".js", ".mjs", ".ts", ".rb"}
+        return self.kind in {
+            FileKind.SHELL,
+            FileKind.PYTHON,
+            FileKind.JAVASCRIPT,
+            FileKind.POWERSHELL,
+        }
 
 
-class SkillPackage(BaseModel):
-    """Normalized skill package ready for rules."""
+class PackageContext(BaseModel):
+    """Pre-analyzed skill package — the only input rules should need."""
 
     root: str
-    skill_md: SkillFile | None = None
+    skill_md: AnalyzedFile | None = None
     frontmatter: dict[str, Any] = Field(default_factory=dict)
     body: str = ""
-    files: list[SkillFile] = Field(default_factory=list)
+    files: list[AnalyzedFile] = Field(default_factory=list)
     parse_errors: list[str] = Field(default_factory=list)
 
     @property
@@ -138,12 +208,17 @@ class SkillPackage(BaseModel):
         return str(raw) if raw is not None else None
 
     def text_blob(self) -> str:
-        """All text content joined — used by pattern rules that span files."""
+        """All normalized text joined — for package-wide pattern rules."""
         parts: list[str] = []
-        if self.skill_md:
-            parts.append(self.skill_md.content)
         for f in self.files:
-            if f is self.skill_md:
-                continue
-            parts.append(f"\n# FILE: {f.relpath}\n{f.content}")
+            parts.append(f"\n# FILE: {f.relpath}\n{f.normalized}")
         return "\n".join(parts)
+
+    def files_of(self, *kinds: FileKind) -> list[AnalyzedFile]:
+        want = set(kinds)
+        return [f for f in self.files if f.kind in want]
+
+
+# Back-compat aliases used during migration of older call sites / docs.
+SkillFile = AnalyzedFile
+SkillPackage = PackageContext

@@ -3,26 +3,53 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import yaml
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+from skill_guard.models import Finding, Severity
+
+FailOn = Literal["never", "warn", "block"]
 
 
 class RuleConfig(BaseModel):
     enabled: bool = True
-    severity: str | None = None  # optional override: low|medium|high|critical
+    severity: Severity | None = None
+
+    @field_validator("severity", mode="before")
+    @classmethod
+    def _parse_severity(cls, v: object) -> Severity | None:
+        if v is None or v == "":
+            return None
+        if isinstance(v, Severity):
+            return v
+        try:
+            return Severity(str(v).lower())
+        except ValueError as exc:
+            raise ValueError(
+                f"invalid severity {v!r}; expected one of "
+                f"{', '.join(s.value for s in Severity)}"
+            ) from exc
 
 
 class SkillGuardConfig(BaseModel):
     """User/project configuration for scan behavior."""
 
-    fail_on: str = "block"  # never|warn|block
+    fail_on: FailOn = "block"
     rules: dict[str, RuleConfig] = Field(default_factory=dict)
     suppress: list[str] = Field(
         default_factory=list,
-        description="Rule ids or rule:path globs to suppress, e.g. SG008 or SG001:SKILL.md",
+        description="Rule ids or rule:path, e.g. SG008 or SG001:SKILL.md",
     )
+
+    @field_validator("fail_on", mode="before")
+    @classmethod
+    def _parse_fail_on(cls, v: object) -> str:
+        s = str(v or "block").lower()
+        if s not in {"never", "warn", "block"}:
+            raise ValueError("fail_on must be never|warn|block")
+        return s
 
 
 def load_config(path: str | Path | None = None) -> SkillGuardConfig:
@@ -51,36 +78,33 @@ def _parse(raw: str) -> SkillGuardConfig:
     rules: dict[str, RuleConfig] = {}
     if isinstance(rules_in, dict):
         for k, v in rules_in.items():
+            key = str(k).upper()
             if isinstance(v, bool):
-                rules[str(k).upper()] = RuleConfig(enabled=v)
+                rules[key] = RuleConfig(enabled=v)
             elif isinstance(v, dict):
-                rules[str(k).upper()] = RuleConfig.model_validate(v)
+                rules[key] = RuleConfig.model_validate(v)
     return SkillGuardConfig(
-        fail_on=str(data.get("fail_on", "block")),
+        fail_on=data.get("fail_on", "block"),
         rules=rules,
         suppress=[str(x) for x in (data.get("suppress") or [])],
     )
 
 
-def apply_config_to_findings(findings: list, cfg: SkillGuardConfig) -> list:
-    """Filter suppressed / disabled rules."""
+def apply_config_to_findings(
+    findings: list[Finding], cfg: SkillGuardConfig
+) -> list[Finding]:
+    """Filter suppressed / disabled rules; apply severity overrides."""
     disabled = {rid for rid, rc in cfg.rules.items() if not rc.enabled}
-    out = []
+    out: list[Finding] = []
     for f in findings:
-        rid = f.rule_id.value if hasattr(f.rule_id, "value") else str(f.rule_id)
+        rid = f.rule_id.value
         if rid in disabled:
             continue
         if _suppressed(rid, f.path, cfg.suppress):
             continue
-        # severity override
         rc = cfg.rules.get(rid)
-        if rc and rc.severity:
-            from skill_guard.models import Severity
-
-            try:
-                f = f.model_copy(update={"severity": Severity(rc.severity.lower())})
-            except Exception:
-                pass
+        if rc and rc.severity is not None:
+            f = f.model_copy(update={"severity": rc.severity})
         out.append(f)
     return out
 

@@ -1,14 +1,23 @@
-"""SG004 — data exfiltration: path registry + language readers + classic patterns."""
+"""SG004 — data exfiltration via path registry + language readers + prose patterns.
+
+Language analyzers run only by FileKind (and fence candidates for markdown).
+No prose sniffing; no PowerShell ownership here (SG003 owns PS).
+"""
 
 from __future__ import annotations
 
 import re
 
 from skill_guard.analysis.lang_js import analyze_js
-from skill_guard.analysis.lang_powershell import analyze_powershell
 from skill_guard.analysis.lang_python import analyze_python
-from skill_guard.models import Finding, RuleId, Severity, SkillPackage
-from skill_guard.normalize import extract_code_candidates, normalize_text
+from skill_guard.models import (
+    FileKind,
+    Finding,
+    PackageContext,
+    RuleId,
+    Severity,
+    make_finding,
+)
 from skill_guard.paths import read_then_network_risk
 
 _CLASSIC: list[tuple[Severity, re.Pattern[str], str]] = [
@@ -50,107 +59,84 @@ _CLASSIC: list[tuple[Severity, re.Pattern[str], str]] = [
     ),
     (
         Severity.CRITICAL,
-        re.compile(
-            r"(?i)\baws\s+s3\s+cp\s+s3://[^\s]+"
-        ),
+        re.compile(r"(?i)\baws\s+s3\s+cp\s+s3://[^\s]+"),
         "AWS S3 copy of remote/corp data",
     ),
     (
         Severity.HIGH,
-        re.compile(
-            r"(?i)\baws\s+sts\s+get-caller-identity\b"
-        ),
+        re.compile(r"(?i)\baws\s+sts\s+get-caller-identity\b"),
         "AWS identity probe (often prelude to abuse)",
     ),
 ]
 
 
-def check(pkg: SkillPackage) -> list[Finding]:
+def check(ctx: PackageContext) -> list[Finding]:
     findings: list[Finding] = []
-    for f in pkg.files:
-        for blob in extract_code_candidates(f.content):
-            norm = normalize_text(blob)
-
-            # classic patterns
-            for severity, pattern, title in _CLASSIC:
-                for m in pattern.finditer(norm):
-                    findings.append(
-                        Finding(
-                            rule_id=RuleId.SG004,
-                            severity=severity,
-                            title=title,
-                            message=f"Possible data exfiltration behavior in `{f.relpath}`.",
-                            path=f.relpath,
-                            line=_line(f.content, m.group(0)),
-                            evidence=m.group(0)[:120],
-                            remediation="Remove credential harvesting and outbound secret transmission.",
-                        )
-                    )
-
-            # path registry: sensitive near network
-            for pid in read_then_network_risk(norm):
+    for f in ctx.files:
+        # Prose / classic patterns on normalized full text
+        for severity, pattern, title in _CLASSIC:
+            for m in pattern.finditer(f.normalized):
                 findings.append(
-                    Finding(
-                        rule_id=RuleId.SG004,
-                        severity=Severity.CRITICAL,
-                        title=f"Sensitive path + network sink ({pid})",
-                        message=f"Credential path co-located with network activity in `{f.relpath}`.",
+                    make_finding(
+                        RuleId.SG004,
+                        severity,
+                        title=title,
                         path=f.relpath,
+                        message=f"Possible data exfiltration behavior in `{f.relpath}`.",
+                        evidence=m.group(0),
+                        remediation="Remove credential harvesting and outbound secret transmission.",
+                        line=f.normalized.count("\n", 0, m.start()) + 1,
+                    )
+                )
+
+        for blob in f.candidates:
+            for pid in read_then_network_risk(blob):
+                findings.append(
+                    make_finding(
+                        RuleId.SG004,
+                        Severity.CRITICAL,
+                        title=f"Sensitive path + network sink ({pid})",
+                        path=f.relpath,
+                        message=(
+                            f"Credential path co-located with network activity in `{f.relpath}`."
+                        ),
                         evidence=pid,
                         remediation="Do not combine credential path access with network calls.",
                     )
                 )
 
-            # language-aware
-            suffix = f.suffix.lower()
-            if suffix == ".py" or "import " in blob or "def " in blob:
-                findings.extend(analyze_python(blob, f.relpath))
-            if suffix in {".js", ".mjs", ".cjs", ".ts", ".tsx"} or "require(" in blob or "readFileSync" in blob:
-                findings.extend(analyze_js(blob, f.relpath))
-            if suffix in {".ps1", ".psm1"} or "Invoke-" in blob or "Get-Content" in blob:
-                findings.extend(analyze_powershell(blob, f.relpath))
-
-            # pure path read of critical material even without network (still theft prep)
-            if re.search(
-                r"(?i)(Path\.home\(\).{0,40}\.ssh|open\(['\"].*\.ssh|"
-                r"read_text\(\)|read_bytes\(\)).{0,40}(id_rsa|\.ssh)",
-                norm,
-            ) or re.search(
-                r"(?i)Path\.home\(\)\s*/\s*['\"]\.ssh['\"]",
-                norm,
+            if f.kind is FileKind.PYTHON or (
+                f.kind is FileKind.MARKDOWN and _looks_python(blob)
             ):
-                if not any(x.title.startswith("Python home SSH") for x in findings):
-                    # covered by lang_python usually; keep generic fallback
-                    if "Path.home()" in norm and ".ssh" in norm:
-                        findings.append(
-                            Finding(
-                                rule_id=RuleId.SG004,
-                                severity=Severity.HIGH,
-                                title="Programmatic SSH path access",
-                                message=f"Code references home .ssh paths in `{f.relpath}`.",
-                                path=f.relpath,
-                                evidence="Path.home() + .ssh",
-                                remediation="Do not access SSH keys from skills.",
-                            )
-                        )
+                findings.extend(analyze_python(blob, f.relpath))
+            if f.kind is FileKind.JAVASCRIPT or (
+                f.kind is FileKind.MARKDOWN and _looks_js(blob)
+            ):
+                findings.extend(analyze_js(blob, f.relpath))
+            # scripts/*.py etc. already FileKind.PYTHON
 
-    return _dedupe(findings)
+        # Native source files always analyzed even if candidates empty of fences
+        if f.kind is FileKind.PYTHON and f.content not in f.candidates:
+            findings.extend(analyze_python(f.normalized, f.relpath))
+        if f.kind is FileKind.JAVASCRIPT and f.content not in f.candidates:
+            findings.extend(analyze_js(f.normalized, f.relpath))
+
+    return findings
 
 
-def _line(content: str, snippet: str) -> int | None:
-    idx = content.lower().find(snippet.lower()[:40]) if snippet else -1
-    if idx < 0:
-        return None
-    return content.count("\n", 0, idx) + 1
+def _looks_python(blob: str) -> bool:
+    """Fence-body heuristic: only when fence content is clearly Python syntax."""
+    return bool(
+        re.search(r"(?m)^\s*(import |from \w+ import |def |class )", blob)
+        or "Path.home()" in blob
+        or "urllib" in blob
+        or "requests." in blob
+    )
 
 
-def _dedupe(findings: list[Finding]) -> list[Finding]:
-    seen: set[tuple] = set()
-    out: list[Finding] = []
-    for f in findings:
-        key = (f.rule_id, f.path, f.title, f.evidence)
-        if key in seen:
-            continue
-        seen.add(key)
-        out.append(f)
-    return out
+def _looks_js(blob: str) -> bool:
+    return bool(
+        re.search(r"(?m)^\s*(const |let |var |require\(|import )", blob)
+        or "readFileSync" in blob
+        or "child_process" in blob
+    )
