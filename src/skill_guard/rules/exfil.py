@@ -1,19 +1,21 @@
-"""SG004 — data exfiltration patterns.
-
-Targets instructions/scripts that read secrets or home files and send them out.
-"""
+"""SG004 — data exfiltration: path registry + language readers + classic patterns."""
 
 from __future__ import annotations
 
 import re
 
+from skill_guard.analysis.lang_js import analyze_js
+from skill_guard.analysis.lang_powershell import analyze_powershell
+from skill_guard.analysis.lang_python import analyze_python
 from skill_guard.models import Finding, RuleId, Severity, SkillPackage
+from skill_guard.normalize import extract_code_candidates, normalize_text
+from skill_guard.paths import read_then_network_risk
 
-_PATTERNS: list[tuple[Severity, re.Pattern[str], str]] = [
+_CLASSIC: list[tuple[Severity, re.Pattern[str], str]] = [
     (
         Severity.CRITICAL,
         re.compile(
-            r"(?i)(cat|type|Get-Content|head|tail)\s+[^\n]{0,40}"
+            r"(?i)(cat|type|Get-Content|head|tail)\s+[^\n]{0,60}"
             r"(\.ssh/|\.aws/|\.gnupg/|\.kube/|id_rsa|\.env\b|credentials)"
         ),
         "Read sensitive local credential paths",
@@ -21,15 +23,7 @@ _PATTERNS: list[tuple[Severity, re.Pattern[str], str]] = [
     (
         Severity.CRITICAL,
         re.compile(
-            r"(?i)(curl|wget|fetch|Invoke-WebRequest|requests\.(post|put)|httpx\.(post|put)|urllib)"
-            r"[^\n]{0,160}(api[_-]?key|token|password|secret|Authorization|Bearer)"
-        ),
-        "HTTP upload involving secrets/tokens",
-    ),
-    (
-        Severity.CRITICAL,
-        re.compile(
-            r"(?i)(curl|wget)\s+[^\n]{0,80}(-d|--data|--data-raw|-F|--form)\b[^\n]{0,80}"
+            r"(?i)(curl|wget)\s+[^\n]{0,100}(-d|--data|--data-raw|-F|--form)\b[^\n]{0,100}"
             r"(HOME|\.ssh|\.env|id_rsa|credentials|passwd)"
         ),
         "curl/wget POST of sensitive paths",
@@ -37,15 +31,7 @@ _PATTERNS: list[tuple[Severity, re.Pattern[str], str]] = [
     (
         Severity.HIGH,
         re.compile(
-            r"(?i)(base64\s+.*\|.*curl|curl.*base64|"
-            r"nc\s+-e\b|ncat\s+-e\b|bash\s+-i\s+>&\s+/dev/tcp/)"
-        ),
-        "Classic reverse-shell or encoded exfil pipeline",
-    ),
-    (
-        Severity.HIGH,
-        re.compile(
-            r"(?i)(env\s*\|\s*curl|printenv\s*\||"
+            r"(?i)(env\s*\|\s*curl|printenv\s*\|\s*curl|"
             r"process\.env[^\n]{0,40}(fetch|axios|http)|"
             r"os\.environ[^\n]{0,40}(requests|httpx|urlopen))"
         ),
@@ -55,7 +41,6 @@ _PATTERNS: list[tuple[Severity, re.Pattern[str], str]] = [
         Severity.HIGH,
         re.compile(
             r"(?i)("
-            # verb form + object: avoid matching security docs that name the threat class
             r"\bexfiltrate\s+(the\s+)?(secrets?|credentials?|keys?|tokens?|env(?:ironment)?|data)\b|"
             r"upload\s+(the\s+)?(secrets?|credentials?|api\s*keys?|ssh\s*keys?|tokens?|env(?:ironment)?\s*vars?)|"
             r"send\s+(the\s+)?(secrets?|credentials?|api\s*keys?|ssh\s*keys?|tokens?)\s+to"
@@ -63,24 +48,109 @@ _PATTERNS: list[tuple[Severity, re.Pattern[str], str]] = [
         ),
         "Explicit exfiltration language in skill instructions",
     ),
+    (
+        Severity.CRITICAL,
+        re.compile(
+            r"(?i)\baws\s+s3\s+cp\s+s3://[^\s]+"
+        ),
+        "AWS S3 copy of remote/corp data",
+    ),
+    (
+        Severity.HIGH,
+        re.compile(
+            r"(?i)\baws\s+sts\s+get-caller-identity\b"
+        ),
+        "AWS identity probe (often prelude to abuse)",
+    ),
 ]
 
 
 def check(pkg: SkillPackage) -> list[Finding]:
     findings: list[Finding] = []
     for f in pkg.files:
-        for severity, pattern, title in _PATTERNS:
-            for m in pattern.finditer(f.content):
+        for blob in extract_code_candidates(f.content):
+            norm = normalize_text(blob)
+
+            # classic patterns
+            for severity, pattern, title in _CLASSIC:
+                for m in pattern.finditer(norm):
+                    findings.append(
+                        Finding(
+                            rule_id=RuleId.SG004,
+                            severity=severity,
+                            title=title,
+                            message=f"Possible data exfiltration behavior in `{f.relpath}`.",
+                            path=f.relpath,
+                            line=_line(f.content, m.group(0)),
+                            evidence=m.group(0)[:120],
+                            remediation="Remove credential harvesting and outbound secret transmission.",
+                        )
+                    )
+
+            # path registry: sensitive near network
+            for pid in read_then_network_risk(norm):
                 findings.append(
                     Finding(
                         rule_id=RuleId.SG004,
-                        severity=severity,
-                        title=title,
-                        message=f"Possible data exfiltration behavior in `{f.relpath}`.",
+                        severity=Severity.CRITICAL,
+                        title=f"Sensitive path + network sink ({pid})",
+                        message=f"Credential path co-located with network activity in `{f.relpath}`.",
                         path=f.relpath,
-                        line=f.content.count("\n", 0, m.start()) + 1,
-                        evidence=m.group(0)[:120],
-                        remediation="Remove credential harvesting and outbound secret transmission.",
+                        evidence=pid,
+                        remediation="Do not combine credential path access with network calls.",
                     )
                 )
-    return findings
+
+            # language-aware
+            suffix = f.suffix.lower()
+            if suffix == ".py" or "import " in blob or "def " in blob:
+                findings.extend(analyze_python(blob, f.relpath))
+            if suffix in {".js", ".mjs", ".cjs", ".ts", ".tsx"} or "require(" in blob or "readFileSync" in blob:
+                findings.extend(analyze_js(blob, f.relpath))
+            if suffix in {".ps1", ".psm1"} or "Invoke-" in blob or "Get-Content" in blob:
+                findings.extend(analyze_powershell(blob, f.relpath))
+
+            # pure path read of critical material even without network (still theft prep)
+            if re.search(
+                r"(?i)(Path\.home\(\).{0,40}\.ssh|open\(['\"].*\.ssh|"
+                r"read_text\(\)|read_bytes\(\)).{0,40}(id_rsa|\.ssh)",
+                norm,
+            ) or re.search(
+                r"(?i)Path\.home\(\)\s*/\s*['\"]\.ssh['\"]",
+                norm,
+            ):
+                if not any(x.title.startswith("Python home SSH") for x in findings):
+                    # covered by lang_python usually; keep generic fallback
+                    if "Path.home()" in norm and ".ssh" in norm:
+                        findings.append(
+                            Finding(
+                                rule_id=RuleId.SG004,
+                                severity=Severity.HIGH,
+                                title="Programmatic SSH path access",
+                                message=f"Code references home .ssh paths in `{f.relpath}`.",
+                                path=f.relpath,
+                                evidence="Path.home() + .ssh",
+                                remediation="Do not access SSH keys from skills.",
+                            )
+                        )
+
+    return _dedupe(findings)
+
+
+def _line(content: str, snippet: str) -> int | None:
+    idx = content.lower().find(snippet.lower()[:40]) if snippet else -1
+    if idx < 0:
+        return None
+    return content.count("\n", 0, idx) + 1
+
+
+def _dedupe(findings: list[Finding]) -> list[Finding]:
+    seen: set[tuple] = set()
+    out: list[Finding] = []
+    for f in findings:
+        key = (f.rule_id, f.path, f.title, f.evidence)
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(f)
+    return out

@@ -1,0 +1,42 @@
+name: skill-guard
+description: Audit Agent Skill packages (SKILL.md) for secrets, exfil, shell bombs, and enterprise policy risks.
+author: aisona-lab
+branding:
+  icon: shield
+  color: red
+
+inputs:
+  path:
+    description: Path to skill directory or glob parent to scan
+    required: true
+    default: .
+  fail-on:
+    description: never | warn | block
+    required: false
+    default: block
+  sarif:
+    description: Write SARIF report path (empty to skip)
+    required: false
+    default: skill-guard.sarif
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+    - name: Install skill-guard
+      shell: bash
+      run: pip install "${{ github.action_path }}"
+    - name: Scan
+      shell: bash
+      run: |
+        set -euo pipefail
+        ARGS=(scan "${{ inputs.path }}" --fail-on "${{ inputs.fail-on }}")
+        if [ -n "${{ inputs.sarif }}" ]; then
+          skill-guard "${ARGS[@]}" --sarif > "${{ inputs.sarif }}"
+          skill-guard "${ARGS[@]}"
+        else
+          skill-guard "${ARGS[@]}"
+        fi

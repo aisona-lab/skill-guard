@@ -126,3 +126,20 @@ No live LLM tests in CI. If optional LLM mode is added later, mark
 2. Selftest must run before any public accuracy claim.
 3. Prefer false positives on critical classes over silent misses of exfil/secrets.
 4. If a rule cannot be explained in one sentence, delete it.
+
+## P0 hardening (v0.2)
+
+After red-team showed ~32% recall on independent attacks (circular dataset), P0 added:
+
+| Layer | Decision |
+|-------|----------|
+| `normalize.py` | NFKC + fence lift + line-cont so trivial evasion fails closed |
+| `paths.py` | Single sensitive-path catalog shared by SG004/SG010/lang |
+| `analysis/shell_tokens.py` | Pipeline/flag-set shell analysis (order-independent rm/curl\|zsh) |
+| `analysis/lang_*.py` | Python/JS/PowerShell credential-theft heuristics (no code exec) |
+| Adversarial suite | Separate CI gate; ≥0.75 attack recall required |
+| SG001 severity | Invalid name is MEDIUM (WARN), not BLOCK — avoids signal pollution |
+| SARIF + config | Production CI consumers need machine format + suppressions |
+
+Residual known miss: split/concatenated secret tokens (`'sk'+'-ant-'+…`).
+Documented; not papered over with a flaky regex.

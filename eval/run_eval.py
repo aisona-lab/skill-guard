@@ -1,15 +1,8 @@
-"""Dataset eval harness.
+"""Dataset eval harness — regression + adversarial gates.
 
-Metrics (core tier only for CI gates):
-  - unsafe_recall: fraction of label=unsafe fixtures that BLOCK
-  - rule_recall: fraction of unsafe fixtures that fire ≥1 expected_rule
-  - safe_fpr: fraction of label=safe fixtures that BLOCK (false block rate)
-
-Inspired by OrcaI eval honesty and ponytail selftest discipline.
-
-  uv run python eval/run_eval.py
   uv run python eval/run_eval.py --check
-  uv run python eval/run_eval.py --json
+  uv run python eval/run_eval.py --suite adversarial --check
+  uv run python eval/run_eval.py --suite all --check --details
 """
 
 from __future__ import annotations
@@ -25,17 +18,19 @@ sys.path.insert(0, str(ROOT / "src"))
 from skill_guard.engine import scan_path  # noqa: E402
 from skill_guard.models import Verdict  # noqa: E402
 
-CATALOG = ROOT / "dataset" / "catalog.jsonl"
-
-# Conservative production gates for core tier
+# Regression gates (self-authored fixtures — not an external accuracy claim)
 MIN_UNSAFE_RECALL = 0.95
 MIN_RULE_RECALL = 0.90
-MAX_SAFE_FPR = 0.10
+MAX_SAFE_FPR = 0.05
+
+# Adversarial gates (independent attack suite — production bar)
+MIN_ADV_ATTACK_RECALL = 0.75
+MAX_ADV_SAFE_FPR = 0.05
 
 
-def load_catalog() -> list[dict]:
+def load_catalog(path: Path) -> list[dict]:
     rows = []
-    for line in CATALOG.read_text(encoding="utf-8").splitlines():
+    for line in path.read_text(encoding="utf-8").splitlines():
         line = line.strip()
         if not line or line.startswith("#"):
             continue
@@ -43,15 +38,27 @@ def load_catalog() -> list[dict]:
     return rows
 
 
-def evaluate(rows: list[dict]) -> dict:
+def evaluate(rows: list[dict], *, label_filter: str | None = None) -> dict:
     details = []
     unsafe_total = unsafe_blocked = 0
     rule_hits = rule_total = 0
     safe_total = safe_blocked = 0
-    soft_rows = []
 
     for row in rows:
+        if label_filter == "adversarial" and row.get("tier") != "adversarial":
+            continue
+        if label_filter == "core" and row.get("tier") not in {None, "core"}:
+            # core catalog only
+            if row.get("tier") == "adversarial":
+                continue
+        if row.get("tier") == "soft" or row.get("label") == "borderline":
+            if label_filter != "all":
+                continue
+
         path = ROOT / "dataset" / row["path"]
+        if not path.exists():
+            details.append({**row, "error": f"missing {path}", "actual_verdict": "ERROR"})
+            continue
         result = scan_path(path)
         fired = sorted({f.rule_id.value for f in result.findings})
         entry = {
@@ -65,10 +72,6 @@ def evaluate(rows: list[dict]) -> dict:
             "finding_count": len(result.findings),
         }
         details.append(entry)
-
-        if row.get("tier") == "soft" or row["label"] == "borderline":
-            soft_rows.append(entry)
-            continue
 
         if row["label"] == "unsafe":
             unsafe_total += 1
@@ -94,68 +97,102 @@ def evaluate(rows: list[dict]) -> dict:
         "safe_total": safe_total,
         "safe_blocked": safe_blocked,
         "safe_fpr": (safe_blocked / safe_total) if safe_total else 0.0,
-        "soft_count": len(soft_rows),
     }
-    return {"metrics": metrics, "details": details, "soft": soft_rows}
+    return {"metrics": metrics, "details": details}
 
 
-def gates_ok(metrics: dict) -> list[str]:
+def gates_core(m: dict) -> list[str]:
     fails = []
-    if metrics["unsafe_recall"] < MIN_UNSAFE_RECALL:
+    if m["unsafe_recall"] < MIN_UNSAFE_RECALL:
+        fails.append(f"core unsafe_recall {m['unsafe_recall']:.3f} < {MIN_UNSAFE_RECALL}")
+    if m["rule_recall"] < MIN_RULE_RECALL:
+        fails.append(f"core rule_recall {m['rule_recall']:.3f} < {MIN_RULE_RECALL}")
+    if m["safe_fpr"] > MAX_SAFE_FPR:
+        fails.append(f"core safe_fpr {m['safe_fpr']:.3f} > {MAX_SAFE_FPR}")
+    return fails
+
+
+def gates_adv(m: dict) -> list[str]:
+    fails = []
+    if m["unsafe_recall"] < MIN_ADV_ATTACK_RECALL:
         fails.append(
-            f"unsafe_recall {metrics['unsafe_recall']:.3f} < {MIN_UNSAFE_RECALL}"
+            f"adversarial attack_recall {m['unsafe_recall']:.3f} < {MIN_ADV_ATTACK_RECALL}"
         )
-    if metrics["rule_recall"] < MIN_RULE_RECALL:
-        fails.append(f"rule_recall {metrics['rule_recall']:.3f} < {MIN_RULE_RECALL}")
-    if metrics["safe_fpr"] > MAX_SAFE_FPR:
-        fails.append(f"safe_fpr {metrics['safe_fpr']:.3f} > {MAX_SAFE_FPR}")
+    if m["safe_fpr"] > MAX_ADV_SAFE_FPR:
+        fails.append(f"adversarial safe_fpr {m['safe_fpr']:.3f} > {MAX_ADV_SAFE_FPR}")
     return fails
 
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="skill-guard dataset eval")
     ap.add_argument("--check", action="store_true", help="exit 1 if gates fail")
-    ap.add_argument("--json", action="store_true", help="JSON output")
-    ap.add_argument("--details", action="store_true", help="print per-fixture rows")
+    ap.add_argument("--json", action="store_true")
+    ap.add_argument("--details", action="store_true")
+    ap.add_argument(
+        "--suite",
+        choices=["core", "adversarial", "all"],
+        default="all",
+        help="which catalogs to evaluate",
+    )
     args = ap.parse_args(argv)
 
-    if not CATALOG.is_file():
-        print(f"error: missing catalog {CATALOG}", file=sys.stderr)
-        return 2
+    reports = {}
+    fails: list[str] = []
 
-    report = evaluate(load_catalog())
-    m = report["metrics"]
+    if args.suite in {"core", "all"}:
+        core_cat = ROOT / "dataset" / "catalog.jsonl"
+        core = evaluate(load_catalog(core_cat), label_filter="core")
+        # filter only core tier rows from main catalog
+        core_rows = [
+            r
+            for r in load_catalog(core_cat)
+            if r.get("tier", "core") == "core" and r.get("label") != "borderline"
+        ]
+        core = evaluate(core_rows)
+        reports["core"] = core
+        if args.check:
+            fails.extend(gates_core(core["metrics"]))
+
+    if args.suite in {"adversarial", "all"}:
+        adv_cat = ROOT / "dataset" / "adversarial_catalog.jsonl"
+        if not adv_cat.is_file():
+            print(f"error: missing {adv_cat}", file=sys.stderr)
+            return 2
+        adv = evaluate(load_catalog(adv_cat))
+        reports["adversarial"] = adv
+        if args.check:
+            fails.extend(gates_adv(adv["metrics"]))
 
     if args.json:
-        print(json.dumps(report, indent=2))
+        print(json.dumps(reports, indent=2))
     else:
-        print("skill-guard eval (core tier)")
-        print(
-            f"  unsafe_recall: {m['unsafe_recall']:.3f} "
-            f"({m['unsafe_blocked']}/{m['unsafe_total']})"
-        )
-        print(
-            f"  rule_recall:   {m['rule_recall']:.3f} "
-            f"({m['rule_hits']}/{m['rule_total']})"
-        )
-        print(
-            f"  safe_fpr:      {m['safe_fpr']:.3f} "
-            f"({m['safe_blocked']}/{m['safe_total']} blocked)"
-        )
-        print(f"  soft rows:     {m['soft_count']} (not gated)")
-        if args.details:
-            for d in report["details"]:
-                mark = "ok"
-                if d["tier"] == "core" and d["label"] == "unsafe" and d["actual_verdict"] != "BLOCK":
-                    mark = "MISS"
-                if d["tier"] == "core" and d["label"] == "safe" and d["actual_verdict"] == "BLOCK":
-                    mark = "FP"
-                print(
-                    f"  [{mark}] {d['id']}: {d['actual_verdict']} "
-                    f"rules={d['fired_rules']}"
-                )
+        for name, rep in reports.items():
+            m = rep["metrics"]
+            print(f"skill-guard eval ({name})")
+            print(
+                f"  attack/unsafe_recall: {m['unsafe_recall']:.3f} "
+                f"({m['unsafe_blocked']}/{m['unsafe_total']})"
+            )
+            print(
+                f"  rule_recall:          {m['rule_recall']:.3f} "
+                f"({m['rule_hits']}/{m['rule_total']})"
+            )
+            print(
+                f"  safe_fpr:             {m['safe_fpr']:.3f} "
+                f"({m['safe_blocked']}/{m['safe_total']} blocked)"
+            )
+            if args.details:
+                for d in rep["details"]:
+                    mark = "ok"
+                    if d["label"] == "unsafe" and d["actual_verdict"] != "BLOCK":
+                        mark = "MISS"
+                    if d["label"] == "safe" and d["actual_verdict"] == "BLOCK":
+                        mark = "FP"
+                    print(
+                        f"  [{mark}] {d['id']}: {d['actual_verdict']} "
+                        f"rules={d.get('fired_rules')}"
+                    )
 
-    fails = gates_ok(m)
     if args.check and fails:
         print("GATE FAIL:", file=sys.stderr)
         for f in fails:

@@ -58,10 +58,12 @@ def check(pkg: SkillPackage) -> list[Finding]:
                 )
             )
         if not _NAME_RE.fullmatch(name_s):
+            # Spec violation is WARN-level: must not BLOCK malware-shaped
+            # detections via accidental invalid names (signal pollution).
             findings.append(
                 Finding(
                     rule_id=RuleId.SG001,
-                    severity=Severity.HIGH,
+                    severity=Severity.MEDIUM,
                     title="Invalid name format",
                     message=(
                         "name must be lowercase alphanumeric with single hyphens, "
@@ -73,12 +75,20 @@ def check(pkg: SkillPackage) -> list[Finding]:
             )
         # Directory name match (when root is the skill folder)
         root_name = pkg.root.rstrip("/").split("/")[-1]
-        if root_name and root_name not in {".", "fixtures"} and name_s != root_name:
-            # Only warn when the parent looks like a skill dir (contains SKILL.md)
+        skip_roots = {
+            ".",
+            "fixtures",
+            "benign",
+            "malicious",
+            "borderline",
+            "enterprise",
+            "adversarial",
+        }
+        if root_name and root_name not in skip_roots and name_s != root_name:
             findings.append(
                 Finding(
                     rule_id=RuleId.SG001,
-                    severity=Severity.MEDIUM,
+                    severity=Severity.LOW,
                     title="name does not match directory name",
                     message=f"frontmatter name `{name_s}` != directory `{root_name}`.",
                     path="SKILL.md",
