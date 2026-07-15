@@ -59,6 +59,14 @@ def scan_path(
     )
 
 
-def scan_many(paths: list[str | Path], **kwargs) -> list[ScanResult]:
+def scan_many(
+    paths: list[str | Path],
+    *,
+    rules: list[str] | None = None,
+    config: SkillGuardConfig | None = None,
+    config_path: str | Path | None = None,
+) -> list[ScanResult]:
     """Batch scan multiple skill roots."""
-    return [scan_path(p, **kwargs) for p in paths]
+    return [
+        scan_path(p, rules=rules, config=config, config_path=config_path) for p in paths
+    ]

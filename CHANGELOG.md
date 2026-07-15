@@ -1,0 +1,51 @@
+# Changelog
+
+All notable changes to this project are documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [0.2.1] — 2026-07-15
+
+### Added
+
+- Out-of-distribution corpus (`dataset/ood/`) with **73** real-world safe skills and CI FPR gate
+- `docs/BENCHMARKS.md` honest multi-suite protocol (core / adversarial / ood)
+- `--sarif-file PATH` for single-pass text + SARIF output
+- Multi-target scans emit **one** merged SARIF document
+- Pre-PyPI packaging metadata (classifiers, Issues/Changelog URLs)
+- `LIMITATIONS.md`
+
+### Fixed
+
+- `make_finding` message default when `path` is omitted
+- `chmod 600` no longer flagged as setuid
+- JS `child_process` requires strong sinks (not bare `sh`)
+- `.env` + network co-occurrence requires exfil-shaped context
+- Bare `GITHUB_TOKEN` mention is MEDIUM; `${{ secrets.* }}` stays CRITICAL
+- GitHub Action no longer double-scans when writing SARIF
+
+### Changed
+
+- PackageContext / AnalyzedFile: normalize once at load (from 0.2.x refactor line)
+- Shell detection is table-driven (pipeline + whole-file rules)
+
+## [0.2.0] — 2026-07-15
+
+### Added
+
+- P0 detectors: shell pipeline engine, language-aware Python/JS/PowerShell, path registry
+- Adversarial suite and selftest gates
+- SARIF 2.1 subset, `.skill-guard.yml` config, composite GitHub Action
+- Batch `scan` of multiple paths
+
+## [0.1.0] — 2026-07-15
+
+### Added
+
+- Initial deterministic skill package auditor (SG001–SG010)
+- Core fixtures, CLI exit codes ALLOW/WARN/BLOCK
+
+[0.2.1]: https://github.com/aisona-lab/skill-guard/compare/v0.2.0...v0.2.1
+[0.2.0]: https://github.com/aisona-lab/skill-guard/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/aisona-lab/skill-guard/releases/tag/v0.1.0

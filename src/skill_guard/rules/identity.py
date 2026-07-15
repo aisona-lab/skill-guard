@@ -1,14 +1,10 @@
-"""SG009 — identity spoofing / typosquat signals.
-
-Conservative: flags only explicit impersonation claims, not every famous name
-mention in a tutorial.
-"""
+"""SG009 — identity spoofing / typosquat signals."""
 
 from __future__ import annotations
 
 import re
 
-from skill_guard.models import Finding, PackageContext, RuleId, Severity
+from skill_guard.models import Finding, PackageContext, RuleId, Severity, make_finding
 
 _CLAIM = re.compile(
     r"(?i)\b(official\s+(anthropic|openai|google|microsoft|amazon|meta)\s+skill|"
@@ -17,11 +13,10 @@ _CLAIM = re.compile(
     r"verified\s+by\s+(anthropic|openai)\b)"
 )
 
-# Homoglyph / lookalike names vs common trusted skills (small denylist).
 _LOOKALIKE_NAMES = {
-    "superpower",  # vs superpowers
+    "superpower",
     "superpowerss",
-    "frontend-deslgn",  # i/l swap demo
+    "frontend-deslgn",
     "claude-offical",
     "anthropic-skill",
     "openai-official",
@@ -33,26 +28,29 @@ def check(pkg: PackageContext) -> list[Finding]:
     name = (pkg.name or "").lower()
     if name in _LOOKALIKE_NAMES:
         findings.append(
-            Finding(
-                rule_id=RuleId.SG009,
-                severity=Severity.HIGH,
+            make_finding(
+                RuleId.SG009,
+                Severity.HIGH,
                 title="Skill name matches known lookalike/typosquat pattern",
-                message=f"name `{name}` is on the lookalike denylist.",
                 path="SKILL.md",
+                message=f"name `{name}` is on the lookalike denylist.",
                 remediation="Choose a distinct name; do not mimic popular skills.",
             )
         )
 
-    blob = pkg.text_blob()
-    for m in _CLAIM.finditer(blob):
+    for m in _CLAIM.finditer(pkg.text_blob()):
         findings.append(
-            Finding(
-                rule_id=RuleId.SG009,
-                severity=Severity.HIGH,
+            make_finding(
+                RuleId.SG009,
+                Severity.HIGH,
                 title="Impersonation claim of a major vendor",
-                message="Skill claims official vendor affiliation without verifiable metadata.",
-                evidence=m.group(0)[:120],
-                remediation="Remove official-vendor claims unless you control that publisher identity.",
+                message=(
+                    "Skill claims official vendor affiliation without verifiable metadata."
+                ),
+                evidence=m.group(0),
+                remediation=(
+                    "Remove official-vendor claims unless you control that publisher identity."
+                ),
             )
         )
     return findings

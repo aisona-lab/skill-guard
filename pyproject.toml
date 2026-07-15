@@ -5,7 +5,7 @@ description = "Audit Agent Skills and packages before they touch your machine. D
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.12"
-authors = [{ name = "aisona-lab" }]
+authors = [{ name = "aisona-lab", email = "contact.aisona@gmail.com" }]
 keywords = [
     "agent-skills",
     "skill-security",
@@ -16,14 +16,30 @@ keywords = [
     "mcp",
     "linter",
 ]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Security",
+    "Topic :: Software Development :: Quality Assurance",
+    "Typing :: Typed",
+]
 dependencies = [
     "pydantic>=2.10",
     "pyyaml>=6.0",
 ]
 
 [project.urls]
-Repository = "https://github.com/aisona-lab/skill-guard"
 Homepage = "https://github.com/aisona-lab/skill-guard"
+Repository = "https://github.com/aisona-lab/skill-guard"
+Issues = "https://github.com/aisona-lab/skill-guard/issues"
+Changelog = "https://github.com/aisona-lab/skill-guard/blob/main/CHANGELOG.md"
+Documentation = "https://github.com/aisona-lab/skill-guard#readme"
 
 [project.scripts]
 skill-guard = "skill_guard.cli:main"
@@ -41,6 +57,16 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/skill_guard"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/src",
+    "/README.md",
+    "/LICENSE",
+    "/CHANGELOG.md",
+    "/LIMITATIONS.md",
+    "/pyproject.toml",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests", "eval"]

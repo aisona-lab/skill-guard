@@ -30,3 +30,24 @@ jobs:
         run: uv run python eval/run_eval.py --suite adversarial --check --details
       - name: OOD eval gates (real-world safe skills FPR)
         run: uv run python eval/run_eval.py --suite ood --check --details
+
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+      - name: Build wheel and sdist
+        run: uv build
+      - name: Smoke install from wheel
+        run: |
+          set -euo pipefail
+          WHEEL=$(ls dist/skill_guard-*.whl | head -1)
+          uvx --from "$WHEEL" skill-guard --version
+          uvx --from "$WHEEL" skill-guard scan dataset/fixtures/benign/tdd-checklist --fail-on block
+          set +e
+          uvx --from "$WHEEL" skill-guard scan dataset/fixtures/malicious/curl-pipe-shell --fail-on block
+          code=$?
+          set -e
+          test "$code" -eq 2

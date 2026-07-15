@@ -28,7 +28,8 @@ skill-guard scan ./path/to/skill
 skill-guard scan ./my-skill
 skill-guard scan ./skill-a ./skill-b          # batch
 skill-guard scan ./my-skill --json
-skill-guard scan ./my-skill --sarif > out.sarif
+skill-guard scan ./my-skill --sarif           # one SARIF doc (merges multi-target)
+skill-guard scan ./my-skill --sarif-file out.sarif   # text + SARIF, single pass
 skill-guard scan ./my-skill --fail-on warn
 skill-guard scan ./my-skill --config .skill-guard.yml
 skill-guard scan ./my-skill --rules SG002,SG004
@@ -58,12 +59,20 @@ rules:
 ### GitHub Action
 
 ```yaml
-- uses: aisona-lab/skill-guard@main
+- uses: aisona-lab/skill-guard@v0.2.1
   with:
     path: ./skills/my-skill
     fail-on: block
     sarif: skill-guard.sarif
+
+# Optional: upload SARIF to GitHub code scanning
+- uses: github/codeql-action/upload-sarif@v3
+  if: always()
+  with:
+    sarif_file: skill-guard.sarif
 ```
+
+Limitations and non-claims: [`LIMITATIONS.md`](LIMITATIONS.md). Changelog: [`CHANGELOG.md`](CHANGELOG.md).
 
 ## What it checks
 
