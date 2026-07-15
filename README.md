@@ -58,12 +58,19 @@ rules:
 
 ### GitHub Action
 
+Paths are **newline-separated** (not space-split), so paths with spaces work:
+
 ```yaml
 - uses: aisona-lab/skill-guard@v0.2.1
   with:
     path: ./skills/my-skill
     fail-on: block
     sarif: skill-guard.sarif
+
+# Multiple skills:
+# path: |
+#   ./skills/foo
+#   ./skills/bar with spaces
 
 # Optional: upload SARIF to GitHub code scanning
 - uses: github/codeql-action/upload-sarif@v3

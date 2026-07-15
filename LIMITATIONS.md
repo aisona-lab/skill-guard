@@ -14,6 +14,17 @@ It does **not** execute skill code and does **not** replace runtime controls.
 | Full language AST analysis | Python/JS/PowerShell use heuristics, not full parsers. |
 | MCP / plugin protocol audit | Skills only (`SKILL.md` packages), not arbitrary MCP servers. |
 
+## GitHub Action paths
+
+The `path` input is **newline-delimited**, not space-split. A single path may
+contain spaces. Multiple paths:
+
+```yaml
+path: |
+  ./skills/foo
+  ./skills/bar with spaces
+```
+
 ## Severity policy (default)
 
 - **BLOCK** (exit 2 with `--fail-on block`): any `high` or `critical` finding  

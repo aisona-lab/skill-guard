@@ -41,6 +41,19 @@ def test_cli_json(dataset_root: Path):
     assert len(data["findings"]) >= 1
 
 
+def test_cli_json_multi_is_list(dataset_root: Path):
+    a = dataset_root / "fixtures/benign/tdd-checklist"
+    b = dataset_root / "fixtures/malicious/curl-pipe-shell"
+    proc = _run("scan", str(a), str(b), "--json")
+    assert proc.returncode == 2
+    data = json.loads(proc.stdout)
+    assert isinstance(data, list)
+    assert len(data) == 2
+    assert data[0]["verdict"] == "ALLOW"
+    assert data[1]["verdict"] == "BLOCK"
+
+
+
 def test_cli_missing_path():
     proc = _run("scan", "/nonexistent/skill-path-xyz")
     assert proc.returncode == 3

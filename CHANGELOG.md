@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Multi-target scans emit **one** merged SARIF document
 - Pre-PyPI packaging metadata (classifiers, Issues/Changelog URLs)
 - `LIMITATIONS.md`
+- `result_dict` / `render_json_multi` (no JSON serialize/parse round-trip)
 
 ### Fixed
 
@@ -24,11 +25,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `.env` + network co-occurrence requires exfil-shaped context
 - Bare `GITHUB_TOKEN` mention is MEDIUM; `${{ secrets.* }}` stays CRITICAL
 - GitHub Action no longer double-scans when writing SARIF
+- GitHub Action path parsing: newline-delimited (supports spaces); no bare word-split
+- SARIF multi-target URIs use `Path` join instead of string `//` scrubbing
 
 ### Changed
 
 - PackageContext / AnalyzedFile: normalize once at load (from 0.2.x refactor line)
 - Shell detection is table-driven (pipeline + whole-file rules)
+- Action `path` input: newline-separated multi-path (not space-separated)
 
 ## [0.2.0] — 2026-07-15
 
