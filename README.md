@@ -94,12 +94,13 @@ Design notes: [`docs/DECISIONS.md`](docs/DECISIONS.md) · P0 plan: [`docs/P0-WEE
 
 ## Evaluation (honest)
 
-Two suites. **Do not conflate them.**
+Three suites. **Do not conflate them.** Full protocol: [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md).
 
 | Suite | Purpose | Gate |
 |-------|---------|------|
-| **core** (`dataset/catalog.jsonl`) | Regression on hand-labeled fixtures | unsafe recall ≥ 0.95, safe FPR ≤ 0.05 |
-| **adversarial** (`dataset/adversarial_catalog.jsonl`) | Independent attack variants (shell reorder, PS cradles, pathlib, docker.sock, …) | attack recall ≥ 0.75, safe FPR ≤ 0.05 |
+| **core** | Hand-labeled fixtures (regression) | unsafe recall ≥ 0.95, safe FPR ≤ 0.05 |
+| **adversarial** | Attack variants (shell reorder, PS, pathlib, docker.sock, …) | attack recall ≥ 0.75 |
+| **ood** | **Real skills** from public repos (safe FPR) | false BLOCK ≤ 0.05, n ≥ 40 |
 
 ```bash
 uv run python eval/selftest.py
@@ -107,14 +108,14 @@ uv run python eval/run_eval.py --suite all --check --details
 uv run pytest -q
 ```
 
-**Current local gates (v0.2.0):**
+**Latest local snapshot (see BENCHMARKS.md for date):**
 
-- core unsafe recall **17/17**, safe FPR **0/9**
-- adversarial attack recall **25/25**, safe FPR **0/5**
-- independent red-team (25 novel variants, not only catalog files): **24/25 (96%)**  
-  residual miss: concatenated API key string (`'sk'+'-ant-'+…`) — documented, not claimed covered
+- core: unsafe **17/17**, safe FPR **0/9**
+- adversarial: **25/25** attacks, **0/5** safe controls blocked
+- **ood: 0 false BLOCKs on 73 vendored real safe skills** (WARN rate ~18%, not a hard gate)
+- residual miss (not claimed): concatenated API keys (`'sk'+'-ant-'+…`)
 
-Core metrics are a **regression guard**. Adversarial + independent red-team are the production bar.
+Core 100% is **not** “real-world accuracy.” OOD FPR is the external credibility metric.
 
 ## Non-goals
 
