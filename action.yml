@@ -7,7 +7,7 @@ branding:
 
 inputs:
   path:
-    description: Path to skill directory or glob parent to scan
+    description: Path to skill directory (or multiple space-separated paths)
     required: true
     default: .
   fail-on:
@@ -15,7 +15,7 @@ inputs:
     required: false
     default: block
   sarif:
-    description: Write SARIF report path (empty to skip)
+    description: Write SARIF report to this path (empty to skip)
     required: false
     default: skill-guard.sarif
 
@@ -33,10 +33,10 @@ runs:
       shell: bash
       run: |
         set -euo pipefail
-        ARGS=(scan "${{ inputs.path }}" --fail-on "${{ inputs.fail-on }}")
+        # shellcheck disable=SC2206
+        PATHS=(${{ inputs.path }})
+        ARGS=(scan "${PATHS[@]}" --fail-on "${{ inputs.fail-on }}")
         if [ -n "${{ inputs.sarif }}" ]; then
-          skill-guard "${ARGS[@]}" --sarif > "${{ inputs.sarif }}"
-          skill-guard "${ARGS[@]}"
-        else
-          skill-guard "${ARGS[@]}"
+          ARGS+=(--sarif-file "${{ inputs.sarif }}")
         fi
+        skill-guard "${ARGS[@]}"

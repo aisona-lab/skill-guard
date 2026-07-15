@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import re
 
-from skill_guard.models import Finding, PackageContext, RuleId, Severity
+from skill_guard.models import Finding, PackageContext, RuleId, Severity, make_finding
 
 # Named patterns: (rule-sub, severity, regex, title)
 # Order: more specific providers first.
@@ -86,12 +86,12 @@ def check(pkg: PackageContext) -> list[Finding]:
                 if is_example and _sub == "generic_api_assign":
                     continue
                 findings.append(
-                    Finding(
-                        rule_id=RuleId.SG002,
-                        severity=severity,
+                    make_finding(
+                        RuleId.SG002,
+                        severity,
                         title=title,
-                        message=f"Possible secret material in `{f.relpath}`.",
                         path=f.relpath,
+                        message=f"Possible secret material in `{f.relpath}`.",
                         line=_line_of(f.content, m.start()),
                         evidence=_mask(snippet),
                         remediation="Remove secrets; load from environment or a secret manager.",

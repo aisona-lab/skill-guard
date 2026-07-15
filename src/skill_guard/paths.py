@@ -174,10 +174,6 @@ def read_then_network_risk(text: str, window: int = 400) -> list[str]:
             has_read_hint(chunk) or pp.severity is Severity.CRITICAL
         ):
             risks.append(pp.id)
-        elif has_read_hint(chunk) and pp.severity is Severity.CRITICAL and has_network_sink(
-            chunk
-        ):
-            risks.append(pp.id)
     seen: set[str] = set()
     out: list[str] = []
     for r in risks:

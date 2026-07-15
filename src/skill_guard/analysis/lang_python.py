@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import re
 
-from skill_guard.models import Finding, RuleId, Severity
+from skill_guard.models import Finding, RuleId, Severity, make_finding
 from skill_guard.paths import CLOUD_METADATA, NETWORK_SINK_HINTS, SENSITIVE_PATHS
 
 _HOME_SSH = re.compile(
@@ -105,12 +105,12 @@ def analyze_python(content: str, relpath: str) -> list[Finding]:
 
 
 def _f(sev: Severity, title: str, path: str, evidence: str) -> Finding:
-    return Finding(
-        rule_id=RuleId.SG004,
-        severity=sev,
+    return make_finding(
+        RuleId.SG004,
+        sev,
         title=title,
-        message=f"Language-aware Python credential-risk pattern in `{path}`.",
         path=path,
-        evidence=evidence[:120],
+        message=f"Language-aware Python credential-risk pattern in `{path}`.",
+        evidence=evidence,
         remediation="Remove secret reads and outbound transmission of local credentials.",
     )

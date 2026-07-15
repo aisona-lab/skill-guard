@@ -44,3 +44,25 @@ def test_cli_json(dataset_root: Path):
 def test_cli_missing_path():
     proc = _run("scan", "/nonexistent/skill-path-xyz")
     assert proc.returncode == 3
+
+
+def test_cli_sarif_file_single_pass(dataset_root: Path, tmp_path: Path):
+    target = dataset_root / "fixtures/malicious/curl-pipe-shell"
+    out = tmp_path / "out.sarif"
+    proc = _run("scan", str(target), "--sarif-file", str(out))
+    assert proc.returncode == 2
+    assert "BLOCK" in proc.stdout
+    data = json.loads(out.read_text())
+    assert data["version"] == "2.1.0"
+    assert data["runs"][0]["results"]
+
+
+def test_cli_multi_target_one_sarif_doc(dataset_root: Path):
+    a = dataset_root / "fixtures/benign/tdd-checklist"
+    b = dataset_root / "fixtures/malicious/curl-pipe-shell"
+    proc = _run("scan", str(a), str(b), "--sarif")
+    assert proc.returncode == 2
+    data = json.loads(proc.stdout)
+    assert data["version"] == "2.1.0"
+    assert len(data["runs"]) == 1
+

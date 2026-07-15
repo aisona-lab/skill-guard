@@ -10,6 +10,7 @@ Exit codes (CI contract):
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
@@ -17,7 +18,7 @@ from skill_guard import __version__
 from skill_guard.config import load_config
 from skill_guard.engine import scan_many
 from skill_guard.report import render_json, render_text
-from skill_guard.sarif import render_sarif
+from skill_guard.sarif import render_sarif_multi
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -35,8 +36,20 @@ def build_parser() -> argparse.ArgumentParser:
         nargs="+",
         help="Path(s) to skill package(s) or SKILL.md",
     )
-    scan.add_argument("--json", action="store_true", help="JSON report")
-    scan.add_argument("--sarif", action="store_true", help="SARIF 2.1.0 report")
+    out = scan.add_mutually_exclusive_group()
+    out.add_argument("--json", action="store_true", help="JSON report(s) to stdout")
+    out.add_argument(
+        "--sarif",
+        action="store_true",
+        help="Single SARIF 2.1.0 document to stdout (merges multi-target scans)",
+    )
+    scan.add_argument(
+        "--sarif-file",
+        type=str,
+        default=None,
+        metavar="PATH",
+        help="Write SARIF to PATH (one document; still prints text unless --json/--sarif)",
+    )
     scan.add_argument(
         "--rules",
         type=str,
@@ -76,17 +89,26 @@ def main(argv: list[str] | None = None) -> int:
             return 3
 
     results = scan_many(paths, rules=rules, config=cfg)
-    worst = 0
-    for result in results:
-        if args.sarif:
-            print(render_sarif(result))
-        elif args.json:
-            print(render_json(result))
+    worst = max((r.exit_code for r in results), default=0)
+
+    if args.sarif_file:
+        Path(args.sarif_file).write_text(
+            render_sarif_multi(results), encoding="utf-8"
+        )
+
+    if args.sarif:
+        print(render_sarif_multi(results))
+    elif args.json:
+        if len(results) == 1:
+            print(render_json(results[0]))
         else:
+            payload = [json.loads(render_json(r)) for r in results]
+            print(json.dumps(payload, indent=2, ensure_ascii=False))
+    else:
+        for i, result in enumerate(results):
             print(render_text(result))
-            if len(results) > 1:
+            if i + 1 < len(results):
                 print("---")
-        worst = max(worst, result.exit_code)
 
     return _exit_for(worst, cfg.fail_on)
 

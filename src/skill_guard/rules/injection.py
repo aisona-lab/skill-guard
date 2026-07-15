@@ -8,7 +8,14 @@ from __future__ import annotations
 
 import re
 
-from skill_guard.models import FileKind, Finding, PackageContext, RuleId, Severity
+from skill_guard.models import (
+    FileKind,
+    Finding,
+    PackageContext,
+    RuleId,
+    Severity,
+    make_finding,
+)
 
 _PATTERNS: list[tuple[Severity, re.Pattern[str], str]] = [
     (
@@ -61,15 +68,17 @@ def check(pkg: PackageContext) -> list[Finding]:
         for severity, pattern, title in _PATTERNS:
             for m in pattern.finditer(text):
                 findings.append(
-                    Finding(
-                        rule_id=RuleId.SG005,
-                        severity=severity,
+                    make_finding(
+                        RuleId.SG005,
+                        severity,
                         title=title,
-                        message=f"Skill content may hijack the host agent (`{f.relpath}`).",
                         path=f.relpath,
+                        message=f"Skill content may hijack the host agent (`{f.relpath}`).",
                         line=text.count("\n", 0, m.start()) + 1,
-                        evidence=m.group(0)[:120],
-                        remediation="Remove override/hidden-system language from skill instructions.",
+                        evidence=m.group(0),
+                        remediation=(
+                            "Remove override/hidden-system language from skill instructions."
+                        ),
                     )
                 )
     return findings

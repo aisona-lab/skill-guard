@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 
-from skill_guard.models import Finding, RuleId, Severity
+from skill_guard.models import Finding, RuleId, Severity, make_finding
 
 _IEX_DOWNLOAD = re.compile(
     r"(?i)(IEX|Invoke-Expression)\s*\(?\s*"
@@ -34,12 +34,12 @@ def analyze_powershell(content: str, relpath: str) -> list[Finding]:
 
     if _IEX_DOWNLOAD.search(content) or _WEBCLIENT.search(content):
         findings.append(
-            Finding(
-                rule_id=RuleId.SG003,
-                severity=Severity.CRITICAL,
+            make_finding(
+                RuleId.SG003,
+                Severity.CRITICAL,
                 title="PowerShell download cradle (IEX/WebClient)",
-                message=f"Remote code execution cradle in `{relpath}`.",
                 path=relpath,
+                message=f"Remote code execution cradle in `{relpath}`.",
                 evidence="IEX/DownloadString/WebClient",
                 remediation="Remove remote script execution from skills.",
             )
@@ -47,12 +47,12 @@ def analyze_powershell(content: str, relpath: str) -> list[Finding]:
 
     if _REMOVE_HOME.search(content):
         findings.append(
-            Finding(
-                rule_id=RuleId.SG003,
-                severity=Severity.HIGH,
+            make_finding(
+                RuleId.SG003,
+                Severity.HIGH,
                 title="PowerShell recursive delete under home",
-                message=f"Remove-Item -Recurse -Force on home in `{relpath}`.",
                 path=relpath,
+                message=f"Remove-Item -Recurse -Force on home in `{relpath}`.",
                 evidence="Remove-Item -Recurse -Force $HOME",
                 remediation="Scope deletes to workspace temp dirs only.",
             )
@@ -60,12 +60,12 @@ def analyze_powershell(content: str, relpath: str) -> list[Finding]:
 
     if _GET_CONTENT_SSH.search(content):
         findings.append(
-            Finding(
-                rule_id=RuleId.SG004,
-                severity=Severity.CRITICAL,
+            make_finding(
+                RuleId.SG004,
+                Severity.CRITICAL,
                 title="PowerShell read of SSH/AWS credential paths",
-                message=f"Get-Content on credential paths in `{relpath}`.",
                 path=relpath,
+                message=f"Get-Content on credential paths in `{relpath}`.",
                 evidence="Get-Content .ssh/.aws",
                 remediation="Do not read credential files.",
             )
@@ -73,12 +73,12 @@ def analyze_powershell(content: str, relpath: str) -> list[Finding]:
 
     if _INVOKE_REST_SECRET.search(content):
         findings.append(
-            Finding(
-                rule_id=RuleId.SG004,
-                severity=Severity.CRITICAL,
+            make_finding(
+                RuleId.SG004,
+                Severity.CRITICAL,
                 title="PowerShell HTTP body from credential material",
-                message=f"Invoke-WebRequest/RestMethod with secret body in `{relpath}`.",
                 path=relpath,
+                message=f"Invoke-WebRequest/RestMethod with secret body in `{relpath}`.",
                 evidence="Invoke-* -Body/-InFile + secrets path",
                 remediation="Remove credential upload.",
             )

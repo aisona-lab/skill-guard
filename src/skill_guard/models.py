@@ -98,7 +98,12 @@ def make_finding(
 ) -> Finding:
     """Canonical Finding constructor used by all rules."""
     ev = evidence[:120] if evidence and len(evidence) > 120 else evidence
-    msg = message or f"{title} in `{path}`." if path else title
+    if message is not None:
+        msg = message
+    elif path:
+        msg = f"{title} in `{path}`."
+    else:
+        msg = title
     return Finding(
         rule_id=rule_id,
         severity=severity,
