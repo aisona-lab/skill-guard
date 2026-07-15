@@ -19,10 +19,18 @@ _PATTERNS: list[tuple[Severity, re.Pattern[str], str, str]] = [
     (
         Severity.CRITICAL,
         re.compile(
-            r"(?i)\bpip\s+install\b[^\n]{0,100}(https?://|git\+https)"
+            r"(?i)\bpip\s+install\b[^\n]{0,120}(https?://|git\+https|git\+ssh|--index-url|--extra-index-url)"
         ),
-        "pip install from remote URL",
+        "pip install from remote URL or custom index",
         "Install from PyPI with a pinned version, or vendor the package.",
+    ),
+    (
+        Severity.CRITICAL,
+        re.compile(
+            r"(?i)\b(npm|pnpm|yarn)\s+install\b[^\n]{0,100}(git\+ssh://|git\+https://|ssh://)"
+        ),
+        "Install package from git+ssh/https URL",
+        "Pin to a registry package with version and integrity hash.",
     ),
     (
         Severity.HIGH,

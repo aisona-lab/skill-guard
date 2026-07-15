@@ -1,0 +1,30 @@
+{"id": "adv-curl-pipe-zsh", "path": "adversarial/curl-pipe-zsh", "label": "unsafe", "expected_verdict": "BLOCK", "expected_rules": ["SG003"], "category": "shell", "tier": "adversarial"}
+{"id": "adv-rm-r-f-root", "path": "adversarial/rm-r-f-root", "label": "unsafe", "expected_verdict": "BLOCK", "expected_rules": ["SG003"], "category": "shell", "tier": "adversarial"}
+{"id": "adv-b64-pipe-bash", "path": "adversarial/b64-pipe-bash", "label": "unsafe", "expected_verdict": "BLOCK", "expected_rules": ["SG003"], "category": "shell", "tier": "adversarial"}
+{"id": "adv-split-var-bash", "path": "adversarial/split-var-bash", "label": "unsafe", "expected_verdict": "BLOCK", "expected_rules": ["SG003"], "category": "shell", "tier": "adversarial"}
+{"id": "adv-powershell-iex", "path": "adversarial/powershell-iex", "label": "unsafe", "expected_verdict": "BLOCK", "expected_rules": ["SG003"], "category": "shell", "tier": "adversarial"}
+{"id": "adv-powershell-rm", "path": "adversarial/powershell-rm", "label": "unsafe", "expected_verdict": "BLOCK", "expected_rules": ["SG003"], "category": "shell", "tier": "adversarial"}
+{"id": "adv-wget-and-bash", "path": "adversarial/wget-and-bash", "label": "unsafe", "expected_verdict": "BLOCK", "expected_rules": ["SG003"], "category": "shell", "tier": "adversarial"}
+{"id": "adv-node-exec-curl-bash", "path": "adversarial/node-exec-curl-bash", "label": "unsafe", "expected_verdict": "BLOCK", "expected_rules": ["SG003"], "category": "shell", "tier": "adversarial"}
+{"id": "adv-py-home-ssh-upload", "path": "adversarial/py-home-ssh-upload", "label": "unsafe", "expected_verdict": "BLOCK", "expected_rules": ["SG004"], "category": "exfil", "tier": "adversarial"}
+{"id": "adv-pathlib-dot-ssh", "path": "adversarial/pathlib-dot-ssh", "label": "unsafe", "expected_verdict": "BLOCK", "expected_rules": ["SG004"], "category": "exfil", "tier": "adversarial"}
+{"id": "adv-open-aws-creds", "path": "adversarial/open-aws-creds", "label": "unsafe", "expected_verdict": "BLOCK", "expected_rules": ["SG004"], "category": "exfil", "tier": "adversarial"}
+{"id": "adv-fs-read-env-fetch", "path": "adversarial/fs-read-env-fetch", "label": "unsafe", "expected_verdict": "BLOCK", "expected_rules": ["SG004"], "category": "exfil", "tier": "adversarial"}
+{"id": "adv-python-requests-files", "path": "adversarial/python-requests-files", "label": "unsafe", "expected_verdict": "BLOCK", "expected_rules": ["SG004"], "category": "exfil", "tier": "adversarial"}
+{"id": "adv-script-only-python-ssh", "path": "adversarial/script-only-python-ssh", "label": "unsafe", "expected_verdict": "BLOCK", "expected_rules": ["SG004"], "category": "exfil", "tier": "adversarial"}
+{"id": "adv-scp-exfil", "path": "adversarial/scp-exfil", "label": "unsafe", "expected_verdict": "BLOCK", "expected_rules": ["SG003", "SG004", "SG010"], "category": "exfil", "tier": "adversarial"}
+{"id": "adv-docker-socket", "path": "adversarial/docker-socket", "label": "unsafe", "expected_verdict": "BLOCK", "expected_rules": ["SG003", "SG010"], "category": "enterprise", "tier": "adversarial"}
+{"id": "adv-aws-cli-s3", "path": "adversarial/aws-cli-s3", "label": "unsafe", "expected_verdict": "BLOCK", "expected_rules": ["SG004"], "category": "enterprise", "tier": "adversarial"}
+{"id": "adv-symlink-escape", "path": "adversarial/symlink-escape", "label": "unsafe", "expected_verdict": "BLOCK", "expected_rules": ["SG007"], "category": "enterprise", "tier": "adversarial"}
+{"id": "adv-chmod-setuid", "path": "adversarial/chmod-setuid", "label": "unsafe", "expected_verdict": "BLOCK", "expected_rules": ["SG003"], "category": "shell", "tier": "adversarial"}
+{"id": "adv-cron-persistence", "path": "adversarial/cron-persistence", "label": "unsafe", "expected_verdict": "BLOCK", "expected_rules": ["SG003"], "category": "shell", "tier": "adversarial"}
+{"id": "adv-npm-git-ssh", "path": "adversarial/npm-git-ssh", "label": "unsafe", "expected_verdict": "BLOCK", "expected_rules": ["SG006"], "category": "supply_chain", "tier": "adversarial"}
+{"id": "adv-pip-index-url", "path": "adversarial/pip-index-url", "label": "unsafe", "expected_verdict": "BLOCK", "expected_rules": ["SG006"], "category": "supply_chain", "tier": "adversarial"}
+{"id": "adv-tar-pipe-sh", "path": "adversarial/tar-pipe-sh", "label": "unsafe", "expected_verdict": "BLOCK", "expected_rules": ["SG003"], "category": "shell", "tier": "adversarial"}
+{"id": "adv-env-curl", "path": "adversarial/env-curl", "label": "unsafe", "expected_verdict": "BLOCK", "expected_rules": ["SG004"], "category": "exfil", "tier": "adversarial"}
+{"id": "adv-homoglyph-ignore", "path": "adversarial/homoglyph-ignore", "label": "unsafe", "expected_verdict": "BLOCK", "expected_rules": ["SG005"], "category": "injection", "tier": "adversarial"}
+{"id": "advsafe-doc-security-words", "path": "adversarial/doc-security-words", "label": "safe", "expected_verdict": "ALLOW", "expected_rules": [], "category": "benign_control", "tier": "adversarial"}
+{"id": "advsafe-curl-public-api", "path": "adversarial/curl-public-api", "label": "safe", "expected_verdict": "ALLOW", "expected_rules": [], "category": "benign_control", "tier": "adversarial"}
+{"id": "advsafe-pip-pin", "path": "adversarial/pip-pin", "label": "safe", "expected_verdict": "ALLOW", "expected_rules": [], "category": "benign_control", "tier": "adversarial"}
+{"id": "advsafe-git-readonly", "path": "adversarial/git-readonly", "label": "safe", "expected_verdict": "ALLOW", "expected_rules": [], "category": "benign_control", "tier": "adversarial"}
+{"id": "advsafe-placeholder-key", "path": "adversarial/placeholder-key", "label": "safe", "expected_verdict": "ALLOW", "expected_rules": [], "category": "benign_control", "tier": "adversarial"}

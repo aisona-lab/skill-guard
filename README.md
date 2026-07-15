@@ -5,15 +5,15 @@
 [![CI](https://github.com/aisona-lab/skill-guard/actions/workflows/ci.yml/badge.svg)](https://github.com/aisona-lab/skill-guard/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-3.12%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
+![version](https://img.shields.io/badge/version-0.2.0-informational)
 
-Community skills install with the same privileges as your coding agent. Most “verifiers” are more LLM prose. **skill-guard is a linter**: pure functions over package files, offline, CI-native.
+Pre-install security linter for [Agent Skills](https://agentskills.io/specification) (`SKILL.md` packages). Scans the **whole package** (markdown + scripts) offline. Never executes skill code.
 
-Part of the [aisona-lab](https://github.com/aisona-lab) trust layer next to [prompt-guard](https://github.com/aisona-lab/prompt-guard), [OrcaI](https://github.com/aisona-lab/OrcaI), and [lazycoder](https://github.com/aisona-lab/lazycoder).
+Part of [aisona-lab](https://github.com/aisona-lab) trust tooling next to [prompt-guard](https://github.com/aisona-lab/prompt-guard), [OrcaI](https://github.com/aisona-lab/OrcaI), [lazycoder](https://github.com/aisona-lab/lazycoder).
 
 ## Install
 
 ```bash
-# from repo
 uv sync
 uv run skill-guard scan ./path/to/skill
 
@@ -26,8 +26,11 @@ skill-guard scan ./path/to/skill
 
 ```bash
 skill-guard scan ./my-skill
+skill-guard scan ./skill-a ./skill-b          # batch
 skill-guard scan ./my-skill --json
-skill-guard scan ./my-skill --fail-on warn    # WARN and BLOCK fail CI
+skill-guard scan ./my-skill --sarif > out.sarif
+skill-guard scan ./my-skill --fail-on warn
+skill-guard scan ./my-skill --config .skill-guard.yml
 skill-guard scan ./my-skill --rules SG002,SG004
 ```
 
@@ -35,88 +38,90 @@ skill-guard scan ./my-skill --rules SG002,SG004
 
 | Code | Meaning |
 |-----:|---------|
-| 0 | ALLOW (or WARN when `--fail-on block`, the default) |
-| 1 | WARN (only with `--fail-on warn`) |
+| 0 | ALLOW (default `--fail-on block` also treats WARN as success) |
+| 1 | WARN (with `--fail-on warn`) |
 | 2 | BLOCK |
 | 3 | usage / missing path |
 
-Verdict policy: any **high** or **critical** finding → `BLOCK`; only medium → `WARN`; low/none → `ALLOW`.
+### Config (`.skill-guard.yml`)
+
+```yaml
+fail_on: block
+suppress:
+  - SG008
+  - "SG001:SKILL.md"
+rules:
+  SG009:
+    enabled: false
+```
+
+### GitHub Action
+
+```yaml
+- uses: aisona-lab/skill-guard@main
+  with:
+    path: ./skills/my-skill
+    fail-on: block
+    sarif: skill-guard.sarif
+```
 
 ## What it checks
 
-| ID | Family | Examples |
-|----|--------|----------|
-| SG001 | Spec / structure | missing `name`/`description`, invalid name charset |
-| SG002 | Secrets | `sk-ant-…`, `ghp_…`, private keys, hardcoded tokens |
-| SG003 | Dangerous shell | `curl \| bash`, `rm -rf $HOME`, fork bombs |
-| SG004 | Exfiltration | `cat ~/.ssh` + curl, env dumps, reverse shells |
-| SG005 | Prompt hijack | “ignore previous instructions”, hidden `[SYSTEM]` tags |
-| SG006 | Supply chain | `npm install https://…`, `pip install git+…` |
-| SG007 | Blast radius | bypass sandbox/HITL, system path writes |
-| SG008 | Token bloat | oversized `SKILL.md` body |
-| SG009 | Identity spoof | “official Anthropic skill” claims, lookalike names |
-| SG010 | Enterprise policy | `169.254.169.254`, GHA secrets, privileged docker/k8s |
+| ID | Family |
+|----|--------|
+| SG001 | Spec / structure (missing required fields) |
+| SG002 | Secrets |
+| SG003 | Dangerous shell / PowerShell / decode-exec (token pipeline engine) |
+| SG004 | Exfiltration (path registry + Python/JS/PS readers) |
+| SG005 | Prompt hijack in skill body |
+| SG006 | Supply chain installs |
+| SG007 | Blast radius / HITL bypass / path traversal |
+| SG008 | Token bloat |
+| SG009 | Identity spoof |
+| SG010 | Enterprise policy (IMDS, CI secrets, docker.sock, cloud creds) |
 
-Rules scan the **whole package** (`SKILL.md` + `scripts/` + references), not just the markdown body. Multi-file attacks are first-class.
-
-## Architecture (short)
+## Architecture
 
 ```
-path → load package (no exec) → rules (pure) → verdict → text|json
+path → load package (no exec)
+     → normalize (NFKC, fences, line-cont)
+     → rules (shell tokens, lang readers, patterns)
+     → config suppressions
+     → verdict → text | json | sarif
 ```
 
-Design rationale lives in [`docs/DECISIONS.md`](docs/DECISIONS.md). Highlights:
+Design notes: [`docs/DECISIONS.md`](docs/DECISIONS.md) · P0 plan: [`docs/P0-WEEK1.md`](docs/P0-WEEK1.md)
 
-- **Deterministic only in v0.1** — no LLM judge (offline, free, auditable).
-- **Selftest before claims** — good fixtures must pass, bad must fail (`eval/selftest.py`).
-- **Honest eval gates** — precision/recall on a labeled corpus; not a vanity 100%.
+## Evaluation (honest)
 
-References for process: [ponytail](https://github.com/DietrichGebert/ponytail) benchmarks (`--selftest`, safety gates), lab siblings prompt-guard / OrcaI / lazycoder.
+Two suites. **Do not conflate them.**
 
-## Dataset
-
-Enterprise-oriented fixtures under `dataset/`:
-
-- **benign** — legitimate skills (ALLOW)
-- **malicious** — clear attacks (BLOCK), including multi-file script-only malice
-- **enterprise** — cloud metadata, CI tokens, vault, privileged k8s/docker
-- **borderline** — soft tier (reported, not hard-gated)
+| Suite | Purpose | Gate |
+|-------|---------|------|
+| **core** (`dataset/catalog.jsonl`) | Regression on hand-labeled fixtures | unsafe recall ≥ 0.95, safe FPR ≤ 0.05 |
+| **adversarial** (`dataset/adversarial_catalog.jsonl`) | Independent attack variants (shell reorder, PS cradles, pathlib, docker.sock, …) | attack recall ≥ 0.75, safe FPR ≤ 0.05 |
 
 ```bash
 uv run python eval/selftest.py
-uv run python eval/run_eval.py --check --details
-```
-
-Core gates (CI):
-
-- unsafe BLOCK recall ≥ 0.95  
-- expected-rule recall ≥ 0.90  
-- safe false-BLOCK rate ≤ 0.10  
-
-These are **regression guards** on a corpus the rules know. Do not market them as universal detection rates.
-
-## Agent skill wrapper
-
-Thin progressive-disclosure skill (calls the CLI, does not reimplement rules):
-
-```
-skills/skill-guard/SKILL.md
-```
-
-## Tests
-
-```bash
-uv sync --all-extras
+uv run python eval/run_eval.py --suite all --check --details
 uv run pytest -q
-uv run ruff check src tests eval
 ```
 
-## Non-goals (v0.1)
+**Current local gates (v0.2.0):**
 
-- Runtime tool-call firewall (different product)
-- MCP protocol proxy
-- Auto-remediation / rewriting third-party skills
-- Web UI
+- core unsafe recall **17/17**, safe FPR **0/9**
+- adversarial attack recall **25/25**, safe FPR **0/5**
+- independent red-team (25 novel variants, not only catalog files): **24/25 (96%)**  
+  residual miss: concatenated API key string (`'sk'+'-ant-'+…`) — documented, not claimed covered
+
+Core metrics are a **regression guard**. Adversarial + independent red-team are the production bar.
+
+## Non-goals
+
+- Runtime tool-call firewall (separate product)
+- LLM-as-judge as primary detector
+- Executing skill scripts during audit
+- 100% detection of all future evasions
 
 ## License
 
