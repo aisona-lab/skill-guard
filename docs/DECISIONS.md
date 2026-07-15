@@ -143,3 +143,19 @@ After red-team showed ~32% recall on independent attacks (circular dataset), P0 
 
 Residual known miss: split/concatenated secret tokens (`'sk'+'-ant-'+…`).
 Documented; not papered over with a flaky regex.
+
+## Refactor: PackageContext (v0.2.1)
+
+Post-review structural cleanup (behavior preserved; gates still green):
+
+| Change | Why |
+|--------|-----|
+| `AnalyzedFile` + `PackageContext` | Normalize + candidates + `FileKind` **once** at load |
+| `analyze.py` | Single-pass kind inference from extension/shebang only |
+| Table-driven `shell.py` | Pipeline + whole-file rule tables; no nested fetch/shell ladder |
+| `make_finding` / `dedupe_findings` | One construction + one dedupe path |
+| `RuleId` in registry | No string/enum drift |
+| `PathPattern.severity: Severity` | Typed severities end-to-end |
+| Config severity validation | No silent `except Exception` |
+| PowerShell only via FileKind / markdown fence heuristics | No dual ownership shell+exfil |
+| Deleted exfil Path.home fallback | Owned by `lang_python` |

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import re
 
-from skill_guard.models import Finding, RuleId, Severity, SkillPackage
+from skill_guard.models import Finding, PackageContext, RuleId, Severity
 
 _CLAIM = re.compile(
     r"(?i)\b(official\s+(anthropic|openai|google|microsoft|amazon|meta)\s+skill|"
@@ -28,7 +28,7 @@ _LOOKALIKE_NAMES = {
 }
 
 
-def check(pkg: SkillPackage) -> list[Finding]:
+def check(pkg: PackageContext) -> list[Finding]:
     findings: list[Finding] = []
     name = (pkg.name or "").lower()
     if name in _LOOKALIKE_NAMES:

@@ -1,8 +1,7 @@
 """Load an Agent Skill package from disk without executing anything.
 
-Spec reference: https://agentskills.io/specification
-- A skill is a directory with SKILL.md (YAML frontmatter + markdown body).
-- Optional: scripts/, references/, assets/.
+Produces PackageContext with AnalyzedFile entries (normalize once).
+Spec: https://agentskills.io/specification
 """
 
 from __future__ import annotations
@@ -12,9 +11,9 @@ from pathlib import Path
 
 import yaml
 
-from skill_guard.models import SkillFile, SkillPackage
+from skill_guard.analyze import analyze_file
+from skill_guard.models import PackageContext
 
-# Skip binary/noise during text scan. Explicit allowlist for safety-relevant code.
 _TEXT_SUFFIXES = {
     "",
     ".md",
@@ -65,7 +64,6 @@ _SKIP_DIRS = {
     "build",
 }
 
-# Hard cap per file to avoid loading multi-MB blobs into memory.
 _MAX_FILE_BYTES = 512_000
 _MAX_FILES = 200
 
@@ -75,11 +73,11 @@ _FRONTMATTER_RE = re.compile(
 )
 
 
-def load_package(path: str | Path) -> SkillPackage:
+def load_package(path: str | Path) -> PackageContext:
     """Load skill package from a directory or a SKILL.md file path."""
     p = Path(path).expanduser().resolve()
     if not p.exists():
-        return SkillPackage(root=str(p), parse_errors=[f"path does not exist: {p}"])
+        return PackageContext(root=str(p), parse_errors=[f"path does not exist: {p}"])
 
     if p.is_file():
         root = p.parent
@@ -88,16 +86,21 @@ def load_package(path: str | Path) -> SkillPackage:
         root = p
         skill_path = p / "SKILL.md"
         if not skill_path.is_file():
-            # Accept lowercase variant only as soft discovery; report missing properly.
             alt = p / "skill.md"
             skill_path = alt if alt.is_file() else skill_path
 
-    files = _collect_files(root)
-    skill_md = next((f for f in files if Path(f.relpath).name.upper() == "SKILL.MD"), None)
+    raw_files = _collect_raw(root)
+    files = [analyze_file(rel, content, size) for rel, content, size in raw_files]
 
-    # If caller pointed at a file not under root walk, load it explicitly.
+    skill_md = next(
+        (f for f in files if Path(f.relpath).name.upper() == "SKILL.MD"),
+        None,
+    )
     if skill_md is None and skill_path.is_file():
-        skill_md = _read_file(skill_path, root)
+        rel, content, size = _read_raw(skill_path, root)
+        skill_md = analyze_file(rel, content, size)
+        if not any(f.relpath == skill_md.relpath for f in files):
+            files = [skill_md, *files]
 
     frontmatter: dict = {}
     body = ""
@@ -111,7 +114,7 @@ def load_package(path: str | Path) -> SkillPackage:
         if fm_err:
             errors.append(fm_err)
 
-    return SkillPackage(
+    return PackageContext(
         root=str(root),
         skill_md=skill_md,
         frontmatter=frontmatter,
@@ -140,8 +143,8 @@ def parse_skill_md(content: str) -> tuple[dict, str, str | None]:
     return data, body, None
 
 
-def _collect_files(root: Path) -> list[SkillFile]:
-    out: list[SkillFile] = []
+def _collect_raw(root: Path) -> list[tuple[str, str, int]]:
+    out: list[tuple[str, str, int]] = []
     for path in sorted(root.rglob("*")):
         if not path.is_file():
             continue
@@ -155,33 +158,29 @@ def _collect_files(root: Path) -> list[SkillFile]:
             "Makefile",
             "LICENSE",
         }:
-            # Still include extensionless scripts with shebang under scripts/
             if not (rel.startswith("scripts/") and _looks_text(path)):
                 continue
         try:
             raw = path.read_bytes()
         except OSError:
             continue
-        if len(raw) > _MAX_FILE_BYTES:
-            # Keep a truncated sample so size-based rules still fire.
-            text = raw[:_MAX_FILE_BYTES].decode("utf-8", errors="replace")
-            out.append(SkillFile(relpath=rel, content=text, size=len(raw)))
-        else:
-            try:
-                text = raw.decode("utf-8")
-            except UnicodeDecodeError:
-                text = raw.decode("utf-8", errors="replace")
-            out.append(SkillFile(relpath=rel, content=text, size=len(raw)))
+        size = len(raw)
+        sample = raw[:_MAX_FILE_BYTES]
+        try:
+            text = sample.decode("utf-8")
+        except UnicodeDecodeError:
+            text = sample.decode("utf-8", errors="replace")
+        out.append((rel, text, size))
         if len(out) >= _MAX_FILES:
             break
     return out
 
 
-def _read_file(path: Path, root: Path) -> SkillFile:
+def _read_raw(path: Path, root: Path) -> tuple[str, str, int]:
     raw = path.read_bytes()
     rel = path.relative_to(root).as_posix() if path.is_relative_to(root) else path.name
     text = raw[:_MAX_FILE_BYTES].decode("utf-8", errors="replace")
-    return SkillFile(relpath=rel, content=text, size=len(raw))
+    return rel, text, len(raw)
 
 
 def _looks_text(path: Path) -> bool:
@@ -189,6 +188,4 @@ def _looks_text(path: Path) -> bool:
         sample = path.read_bytes()[:256]
     except OSError:
         return False
-    if b"\x00" in sample:
-        return False
-    return True
+    return b"\x00" not in sample

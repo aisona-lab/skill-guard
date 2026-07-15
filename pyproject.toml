@@ -1,6 +1,6 @@
 [project]
 name = "skill-guard"
-version = "0.2.0"
+version = "0.2.1"
 description = "Audit Agent Skills and packages before they touch your machine. Deterministic checks. Exit codes. No vibes."
 readme = "README.md"
 license = "MIT"

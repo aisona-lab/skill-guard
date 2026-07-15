@@ -4,8 +4,7 @@ from __future__ import annotations
 
 import re
 
-from skill_guard.models import Finding, RuleId, Severity, SkillPackage
-from skill_guard.normalize import normalize_text
+from skill_guard.models import Finding, PackageContext, RuleId, Severity, make_finding
 from skill_guard.paths import CLOUD_METADATA, find_sensitive_paths
 
 _PERMISSION_PATTERNS: list[tuple[Severity, re.Pattern[str], str]] = [
@@ -81,27 +80,27 @@ _POLICY_PATTERNS: list[tuple[Severity, re.Pattern[str], str]] = [
 ]
 
 
-def check_permissions(pkg: SkillPackage) -> list[Finding]:
-    return _scan(pkg, RuleId.SG007, _PERMISSION_PATTERNS)
+def check_permissions(ctx: PackageContext) -> list[Finding]:
+    return _scan(ctx, RuleId.SG007, _PERMISSION_PATTERNS)
 
 
-def check_policy(pkg: SkillPackage) -> list[Finding]:
-    findings = _scan(pkg, RuleId.SG010, _POLICY_PATTERNS)
-    # cloud metadata via shared catalog
-    for f in pkg.files:
-        norm = normalize_text(f.content)
+def check_policy(ctx: PackageContext) -> list[Finding]:
+    findings = _scan(ctx, RuleId.SG010, _POLICY_PATTERNS)
+    meta_ids = {p.id for p in CLOUD_METADATA}
+    for f in ctx.files:
+        norm = f.normalized
         for pp, m in find_sensitive_paths(norm):
-            if pp.id in {p.id for p in CLOUD_METADATA} or pp.id == "docker_sock":
+            if pp.id in meta_ids or pp.id == "docker_sock":
                 findings.append(
-                    Finding(
-                        rule_id=RuleId.SG010,
-                        severity=Severity.CRITICAL,
+                    make_finding(
+                        RuleId.SG010,
+                        Severity.CRITICAL,
                         title=pp.title,
-                        message=f"Enterprise policy concern in `{f.relpath}`.",
                         path=f.relpath,
-                        line=norm.count("\n", 0, m.start()) + 1,
-                        evidence=m.group(0)[:120],
+                        message=f"Enterprise policy concern in `{f.relpath}`.",
+                        evidence=m.group(0),
                         remediation="Remove cloud metadata / docker.sock access from skills.",
+                        line=norm.count("\n", 0, m.start()) + 1,
                     )
                 )
             if pp.id in {"aws_creds", "gcp_creds", "azure_creds"} and re.search(
@@ -109,13 +108,13 @@ def check_policy(pkg: SkillPackage) -> list[Finding]:
                 norm[max(0, m.start() - 80) : m.end() + 80],
             ):
                 findings.append(
-                    Finding(
-                        rule_id=RuleId.SG010,
-                        severity=Severity.HIGH,
+                    make_finding(
+                        RuleId.SG010,
+                        Severity.HIGH,
                         title=f"Cloud credential file access ({pp.id})",
-                        message=f"Enterprise policy concern in `{f.relpath}`.",
                         path=f.relpath,
-                        evidence=m.group(0)[:80],
+                        message=f"Enterprise policy concern in `{f.relpath}`.",
+                        evidence=m.group(0),
                         remediation="Do not read cloud credential files from skills.",
                     )
                 )
@@ -123,28 +122,28 @@ def check_policy(pkg: SkillPackage) -> list[Finding]:
 
 
 def _scan(
-    pkg: SkillPackage,
+    ctx: PackageContext,
     rule_id: RuleId,
     patterns: list[tuple[Severity, re.Pattern[str], str]],
 ) -> list[Finding]:
     findings: list[Finding] = []
-    for f in pkg.files:
-        text = normalize_text(f.content)
+    for f in ctx.files:
+        text = f.normalized
         for severity, pattern, title in patterns:
             for m in pattern.finditer(text):
                 findings.append(
-                    Finding(
-                        rule_id=rule_id,
-                        severity=severity,
+                    make_finding(
+                        rule_id,
+                        severity,
                         title=title,
-                        message=f"Enterprise policy concern in `{f.relpath}`.",
                         path=f.relpath,
-                        line=text.count("\n", 0, m.start()) + 1,
-                        evidence=m.group(0)[:120],
+                        message=f"Enterprise policy concern in `{f.relpath}`.",
+                        evidence=m.group(0),
                         remediation=(
                             "Remove or tightly scope privileged operations; "
                             "document business need."
                         ),
+                        line=text.count("\n", 0, m.start()) + 1,
                     )
                 )
     return findings

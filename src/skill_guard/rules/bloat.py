@@ -7,7 +7,7 @@ a cheap offline estimate (not a tokenizer claim).
 
 from __future__ import annotations
 
-from skill_guard.models import Finding, RuleId, Severity, SkillPackage
+from skill_guard.models import Finding, PackageContext, RuleId, Severity
 
 # Soft budgets from public progressive-disclosure guidance + practical ops.
 _MAX_BODY_LINES = 500
@@ -16,7 +16,7 @@ _MAX_TOTAL_WORDS = 20000
 _MAX_FILES = 80
 
 
-def check(pkg: SkillPackage) -> list[Finding]:
+def check(pkg: PackageContext) -> list[Finding]:
     findings: list[Finding] = []
 
     if pkg.skill_md:

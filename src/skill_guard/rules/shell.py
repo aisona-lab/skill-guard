@@ -1,11 +1,14 @@
 """SG003 — dangerous shell / PowerShell / decode-exec pipelines.
 
-Uses shell_tokens for flag-order independence and pipeline analysis.
+Table-driven: pipeline matchers + whole-file matchers. No nested special-case
+ladders. PowerShell lives only in lang_powershell (invoked by FileKind).
 """
 
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
+from dataclasses import dataclass
 
 from skill_guard.analysis.lang_powershell import analyze_powershell
 from skill_guard.analysis.shell_tokens import (
@@ -15,327 +18,343 @@ from skill_guard.analysis.shell_tokens import (
     split_pipelines,
     stage_words,
 )
-from skill_guard.models import Finding, RuleId, Severity, SkillPackage
-from skill_guard.normalize import extract_code_candidates, normalize_text
-
-_SHELLS = {
-    "sh",
-    "bash",
-    "zsh",
-    "dash",
-    "ksh",
-    "fish",
-    "csh",
-    "tcsh",
-    "pwsh",
-    "powershell",
-    "powershell.exe",
-}
-_FETCHERS = {"curl", "wget", "fetch"}
-_DECODERS = {"base64", "openssl", "xxd"}
-_DANGEROUS_RM_TARGETS = re.compile(
-    r"(?i)^(/|/\$?HOME|~|/home(/|$)|/Users(/|$)|/etc(/|$)|/var(/|$)|/\*|\$HOME|\.\.)$"
-)
-_SETUID = re.compile(r"(?i)\bchmod\s+(?:[0-7]*[46][0-7]{2,3}|\+s|--setuid)\b")
-_DOCKER_SOCK = re.compile(
-    r"(?i)docker\b[^\n]{0,120}(docker\.sock|/var/run/docker\.sock|-v\s+/:/)"
-)
-_CRON_PIPE = re.compile(r"(?i)crontab\b[^\n]{0,80}(curl|wget).{0,40}\|\s*(ba)?sh")
-_WGET_AND_BASH = re.compile(
-    r"(?i)\b(wget|curl)\b[^\n]{0,160}(&&|;)\s*(ba)?sh\b"
-)
-_VAR_PIPE_SHELL = re.compile(
-    r"(?i)\|\s*\$\{?[A-Za-z_][A-Za-z0-9_]*\}?\b"
+from skill_guard.models import (
+    FileKind,
+    Finding,
+    PackageContext,
+    RuleId,
+    Severity,
+    make_finding,
 )
 
+_SHELLS = frozenset(
+    {"sh", "bash", "zsh", "dash", "ksh", "fish", "csh", "tcsh", "pwsh", "powershell", "powershell.exe"}
+)
+_FETCHERS = frozenset({"curl", "wget", "fetch"})
+_DECODERS = frozenset({"base64", "openssl", "xxd"})
+_HOMEISH = re.compile(r"(?i)(\$HOME|~|/home/|/Users/|\.\.)")
 
-def check(pkg: SkillPackage) -> list[Finding]:
-    findings: list[Finding] = []
-    for f in pkg.files:
-        text = f.content
-        norm = normalize_text(text)
-        candidates = extract_code_candidates(text)
 
-        for blob in candidates:
-            findings.extend(_analyze_shell_blob(blob, f.relpath))
-            if f.suffix in {".ps1", ".psm1"} or "powershell" in blob.lower() or "IEX" in blob:
-                findings.extend(analyze_powershell(blob, f.relpath))
+def _later_shell(names: list[str], start: int) -> str | None:
+    """Return shell name if a later pipeline stage is a shell (or xargs/env → shell)."""
+    for j in range(start + 1, len(names)):
+        if names[j] in _SHELLS:
+            return names[j]
+        if names[j] in {"env", "xargs"}:
+            for k in range(j + 1, len(names)):
+                if names[k] in _SHELLS:
+                    return names[k]
+    return None
 
-        # whole-file extras
-        if _SETUID.search(norm):
-            findings.append(
-                _finding(
-                    Severity.HIGH,
-                    "chmod setuid / dangerous mode",
-                    f.relpath,
-                    "chmod +s or setuid mode",
-                    "Avoid setuid binaries in skills.",
-                )
-            )
-        if _DOCKER_SOCK.search(norm):
-            findings.append(
-                _finding(
-                    Severity.CRITICAL,
-                    "Docker socket or host root mount",
-                    f.relpath,
-                    "docker.sock or -v /:/",
-                    "Do not expose docker.sock or mount host root.",
-                )
-            )
-        if _CRON_PIPE.search(norm):
-            findings.append(
-                _finding(
-                    Severity.CRITICAL,
-                    "Cron persistence with remote shell pipe",
-                    f.relpath,
-                    "crontab + curl|sh",
-                    "Remove persistence installers.",
-                )
-            )
-        if _WGET_AND_BASH.search(norm):
-            findings.append(
-                _finding(
-                    Severity.CRITICAL,
-                    "Download then execute with shell",
-                    f.relpath,
-                    "wget/curl && sh",
-                    "Never download-and-execute remote scripts.",
-                )
-            )
-        # variable pipe to shell (curl | $CMD)
-        if _VAR_PIPE_SHELL.search(norm) and any(
-            x in norm.lower() for x in ("curl", "wget", "fetch")
+
+def _is_decode_stage(stage: list[str], name: str) -> bool:
+    fl = flags_of(stage)
+    if name == "xxd":
+        return True
+    if name == "base64" and (fl & {"d", "D"} or "--decode" in fl):
+        return True
+    if name == "openssl" and any(w in stage_words(stage) for w in ("enc", "base64")):
+        return True
+    return False
+
+
+# --- Pipeline matchers: stages → evidence or None ---
+
+PipelineMatcher = Callable[[list[list[str]]], str | None]
+
+
+def _m_fetch_to_shell(stages: list[list[str]]) -> str | None:
+    names = [cmd_name(s) for s in stages]
+    for i, name in enumerate(names):
+        if name not in _FETCHERS:
+            continue
+        shell = _later_shell(names, i)
+        if shell:
+            return f"{name} | … | {shell}"
+    return None
+
+
+def _m_decode_to_shell(stages: list[list[str]]) -> str | None:
+    names = [cmd_name(s) for s in stages]
+    for i, name in enumerate(names):
+        if name not in _DECODERS or not _is_decode_stage(stages[i], name):
+            continue
+        shell = _later_shell(names, i)
+        if shell:
+            return f"{name} | {shell}"
+    return None
+
+
+def _m_rm_rf_dangerous(stages: list[list[str]]) -> str | None:
+    for stage in stages:
+        if cmd_name(stage) != "rm":
+            continue
+        fl = flags_of(stage)
+        if "r" not in fl or "f" not in fl:
+            continue
+        joined = join_stage(stage)
+        words = [w for w in stage_words(stage)[1:] if not w.startswith("-")]
+        dangerous = {"/", "/*", "$HOME", "$HOME/*", "~", "~/*", "/etc", "/var"}
+        if any(w in dangerous for w in words) or _HOMEISH.search(joined):
+            return joined[:100]
+    return None
+
+
+def _m_curl_insecure(stages: list[list[str]]) -> str | None:
+    for stage in stages:
+        if cmd_name(stage) != "curl":
+            continue
+        fl = flags_of(stage)
+        if "k" in fl or "--insecure" in fl:
+            return join_stage(stage)[:100]
+    return None
+
+
+def _m_chmod_777(stages: list[list[str]]) -> str | None:
+    for stage in stages:
+        if cmd_name(stage) == "chmod" and any(
+            w in stage_words(stage) for w in ("777", "a+rwx")
         ):
-            findings.append(
-                _finding(
-                    Severity.HIGH,
-                    "Pipeline into shell variable (evasion)",
-                    f.relpath,
-                    "| $CMD after fetcher",
-                    "Do not pipe remote content into a shell variable.",
-                )
-            )
-
-    return findings
+            return join_stage(stage)[:100]
+    return None
 
 
-def _analyze_shell_blob(blob: str, relpath: str) -> list[Finding]:
-    findings: list[Finding] = []
-    for stages in split_pipelines(blob):
-        names = [cmd_name(s) for s in stages]
-        # curl|wget | shell
-        for i, name in enumerate(names):
-            if name in _FETCHERS:
-                # later stage is shell?
-                for j in range(i + 1, len(names)):
-                    if names[j] in _SHELLS or names[j] in {"env", "xargs"} and j + 1 < len(
-                        names
-                    ):
-                        # xargs sh
-                        if names[j] in _SHELLS or (
-                            names[j] in {"env", "xargs"}
-                            and any(names[k] in _SHELLS for k in range(j, len(names)))
-                        ):
-                            findings.append(
-                                _finding(
-                                    Severity.CRITICAL,
-                                    "Pipe remote content into a shell",
-                                    relpath,
-                                    join_stage(stages[i]) + " | … | " + names[-1],
-                                    "Never pipe curl/wget into sh/bash/zsh.",
-                                )
-                            )
-                            break
-                    if names[j] in _SHELLS:
-                        findings.append(
-                            _finding(
-                                Severity.CRITICAL,
-                                "Pipe remote content into a shell",
-                                relpath,
-                                f"{name} | {names[j]}",
-                                "Never pipe curl/wget into a shell.",
-                            )
-                        )
-                        break
-                # curl | tar | sh already covered by shell stage
-
-            # base64 -d | shell
-            if name in _DECODERS:
-                fl = flags_of(stages[i])
-                decode = bool(fl & {"d", "D"}) or "--decode" in fl or name == "xxd"
-                if name == "openssl" and any(
-                    w in stage_words(stages[i]) for w in ("enc", "base64")
-                ):
-                    decode = True
-                if decode:
-                    for j in range(i + 1, len(names)):
-                        if names[j] in _SHELLS:
-                            findings.append(
-                                _finding(
-                                    Severity.CRITICAL,
-                                    "Decode pipeline into a shell",
-                                    relpath,
-                                    f"{name} | {names[j]}",
-                                    "Do not decode payloads into shell execution.",
-                                )
-                            )
-                            break
-
-            # rm with r+f and dangerous target
-            if name == "rm":
-                fl = flags_of(stages[i])
-                if "r" in fl and "f" in fl:
-                    for w in stage_words(stages[i])[1:]:
-                        if w.startswith("-"):
-                            continue
-                        if _DANGEROUS_RM_TARGETS.match(w) or w in {
-                            "$HOME/*",
-                            "~/*",
-                            "/*",
-                            "/",
-                        }:
-                            findings.append(
-                                _finding(
-                                    Severity.CRITICAL,
-                                    "Recursive force delete of sensitive path",
-                                    relpath,
-                                    join_stage(stages[i])[:100],
-                                    "Remove destructive rm -rf of home/root paths.",
-                                )
-                            )
-                            break
-                    # also $HOME without regex match
-                    joined = join_stage(stages[i])
-                    if re.search(r"(?i)(\$HOME|~|/home/|/Users/|\.\.)", joined):
-                        findings.append(
-                            _finding(
-                                Severity.HIGH,
-                                "Recursive force delete under home/parent",
-                                relpath,
-                                joined[:100],
-                                "Scope deletes to known workspace temp dirs.",
-                            )
-                        )
-
-            # curl -k
-            if name == "curl":
-                fl = flags_of(stages[i])
-                if "k" in fl or "--insecure" in fl:
-                    findings.append(
-                        _finding(
-                            Severity.HIGH,
-                            "curl with TLS verification disabled",
-                            relpath,
-                            join_stage(stages[i])[:100],
-                            "Do not disable TLS verification.",
-                        )
-                    )
-
-            # chmod 777
-            if name == "chmod" and any(
-                w in stage_words(stages[i]) for w in ("777", "a+rwx")
-            ):
-                findings.append(
-                    _finding(
-                        Severity.HIGH,
-                        "World-writable chmod 777",
-                        relpath,
-                        join_stage(stages[i])[:100],
-                        "Use least-privilege permissions.",
-                    )
-                )
-
-            # sudo + destructive
-            if name == "sudo" and len(stages[i]) > 1:
-                inner = cmd_name(stages[i][1:])
-                if inner in {"rm", "dd", "mkfs", "chmod", "chown", "mkfs.ext4"}:
-                    findings.append(
-                        _finding(
-                            Severity.MEDIUM,
-                            "sudo with privileged destructive command",
-                            relpath,
-                            join_stage(stages[i])[:100],
-                            "Avoid requiring sudo in agent skills.",
-                        )
-                    )
-
-            # dd / mkfs / fork bomb markers in stage text
-            joined = join_stage(stages[i])
-            if re.search(r"(?i)\b(mkfs\.|dd\s+if=)", joined):
-                findings.append(
-                    _finding(
-                        Severity.HIGH,
-                        "Disk wipe pattern",
-                        relpath,
-                        joined[:100],
-                        "Remove destructive disk commands.",
-                    )
-                )
-            if ":(){" in joined.replace(" ", "") or ":(){ :|:& };:" in joined.replace(
-                " ", ""
-            ):
-                findings.append(
-                    _finding(
-                        Severity.CRITICAL,
-                        "Fork bomb pattern",
-                        relpath,
-                        joined[:80],
-                        "Remove fork bombs.",
-                    )
-                )
-
-            # reverse shell /dev/tcp
-            if re.search(r"(?i)/dev/tcp/|bash\s+-i", joined):
-                findings.append(
-                    _finding(
-                        Severity.CRITICAL,
-                        "Reverse shell pattern",
-                        relpath,
-                        joined[:100],
-                        "Remove reverse shells.",
-                    )
-                )
-            if name in {"nc", "ncat", "netcat"} and ("e" in flags_of(stages[i]) or "-e" in stage_words(stages[i])):
-                findings.append(
-                    _finding(
-                        Severity.CRITICAL,
-                        "netcat exec reverse shell",
-                        relpath,
-                        joined[:100],
-                        "Remove nc -e shells.",
-                    )
-                )
-
-            # scp of sensitive (also enterprise) — shell surface
-            if name == "scp" and re.search(
-                r"(?i)(\.ssh|\.aws|credentials|\.env)", joined
-            ):
-                findings.append(
-                    _finding(
-                        Severity.CRITICAL,
-                        "scp of credential paths",
-                        relpath,
-                        joined[:100],
-                        "Do not scp credential files.",
-                    )
-                )
-
-    return findings
+def _m_sudo_destructive(stages: list[list[str]]) -> str | None:
+    for stage in stages:
+        if cmd_name(stage) != "sudo" or len(stage) < 2:
+            continue
+        inner = cmd_name(stage[1:])
+        if inner in {"rm", "dd", "mkfs", "chmod", "chown", "mkfs.ext4"}:
+            return join_stage(stage)[:100]
+    return None
 
 
-def _finding(
-    severity: Severity,
-    title: str,
-    path: str,
-    evidence: str,
-    remediation: str,
-) -> Finding:
-    return Finding(
-        rule_id=RuleId.SG003,
-        severity=severity,
-        title=title,
-        message=f"Dangerous shell pattern in `{path}`.",
-        path=path,
-        evidence=evidence[:120],
-        remediation=remediation,
+def _m_disk_wipe(stages: list[list[str]]) -> str | None:
+    for stage in stages:
+        joined = join_stage(stage)
+        if re.search(r"(?i)\b(mkfs\.|dd\s+if=)", joined):
+            return joined[:100]
+    return None
+
+
+def _m_fork_bomb(stages: list[list[str]]) -> str | None:
+    for stage in stages:
+        compact = join_stage(stage).replace(" ", "")
+        if ":(){" in compact or ":(){:|:&};:" in compact:
+            return join_stage(stage)[:80]
+    return None
+
+
+def _m_reverse_shell(stages: list[list[str]]) -> str | None:
+    for stage in stages:
+        joined = join_stage(stage)
+        name = cmd_name(stage)
+        if re.search(r"(?i)/dev/tcp/|bash\s+-i", joined):
+            return joined[:100]
+        if name in {"nc", "ncat", "netcat"} and (
+            "e" in flags_of(stage) or "-e" in stage_words(stage)
+        ):
+            return joined[:100]
+    return None
+
+
+def _m_scp_creds(stages: list[list[str]]) -> str | None:
+    for stage in stages:
+        if cmd_name(stage) != "scp":
+            continue
+        joined = join_stage(stage)
+        if re.search(r"(?i)(\.ssh|\.aws|credentials|\.env)", joined):
+            return joined[:100]
+    return None
+
+
+@dataclass(frozen=True, slots=True)
+class _PipeRule:
+    severity: Severity
+    title: str
+    match: PipelineMatcher
+    remediation: str
+
+
+_PIPELINE_RULES: tuple[_PipeRule, ...] = (
+    _PipeRule(
+        Severity.CRITICAL,
+        "Pipe remote content into a shell",
+        _m_fetch_to_shell,
+        "Never pipe curl/wget into sh/bash/zsh.",
+    ),
+    _PipeRule(
+        Severity.CRITICAL,
+        "Decode pipeline into a shell",
+        _m_decode_to_shell,
+        "Do not decode payloads into shell execution.",
+    ),
+    _PipeRule(
+        Severity.CRITICAL,
+        "Recursive force delete of sensitive path",
+        _m_rm_rf_dangerous,
+        "Scope deletes to known workspace temp dirs.",
+    ),
+    _PipeRule(
+        Severity.HIGH,
+        "curl with TLS verification disabled",
+        _m_curl_insecure,
+        "Do not disable TLS verification.",
+    ),
+    _PipeRule(
+        Severity.HIGH,
+        "World-writable chmod 777",
+        _m_chmod_777,
+        "Use least-privilege permissions.",
+    ),
+    _PipeRule(
+        Severity.MEDIUM,
+        "sudo with privileged destructive command",
+        _m_sudo_destructive,
+        "Avoid requiring sudo in agent skills.",
+    ),
+    _PipeRule(
+        Severity.HIGH,
+        "Disk wipe pattern",
+        _m_disk_wipe,
+        "Remove destructive disk commands.",
+    ),
+    _PipeRule(
+        Severity.CRITICAL,
+        "Fork bomb pattern",
+        _m_fork_bomb,
+        "Remove fork bombs.",
+    ),
+    _PipeRule(
+        Severity.CRITICAL,
+        "Reverse shell pattern",
+        _m_reverse_shell,
+        "Remove reverse shells.",
+    ),
+    _PipeRule(
+        Severity.CRITICAL,
+        "scp of credential paths",
+        _m_scp_creds,
+        "Do not scp credential files.",
+    ),
+)
+
+# --- Whole-file matchers (non-pipeline) ---
+
+WholeMatcher = Callable[[str], str | None]
+
+
+@dataclass(frozen=True, slots=True)
+class _WholeRule:
+    severity: Severity
+    title: str
+    match: WholeMatcher
+    remediation: str
+
+
+def _w_setuid(text: str) -> str | None:
+    m = re.search(r"(?i)\bchmod\s+(?:[0-7]*[46][0-7]{2,3}|\+s|--setuid)\b", text)
+    return m.group(0) if m else None
+
+
+def _w_docker_sock(text: str) -> str | None:
+    m = re.search(
+        r"(?i)docker\b[^\n]{0,120}(docker\.sock|/var/run/docker\.sock|-v\s+/:/)",
+        text,
     )
+    return m.group(0)[:100] if m else None
+
+
+def _w_cron_pipe(text: str) -> str | None:
+    m = re.search(r"(?i)crontab\b[^\n]{0,80}(curl|wget).{0,40}\|\s*(ba)?sh", text)
+    return m.group(0)[:100] if m else None
+
+
+def _w_download_and_exec(text: str) -> str | None:
+    m = re.search(r"(?i)\b(wget|curl)\b[^\n]{0,160}(&&|;)\s*(ba)?sh\b", text)
+    return m.group(0)[:100] if m else None
+
+
+def _w_var_pipe_shell(text: str) -> str | None:
+    if not re.search(r"(?i)\b(curl|wget|fetch)\b", text):
+        return None
+    m = re.search(r"(?i)\|\s*\$\{?[A-Za-z_][A-Za-z0-9_]*\}?\b", text)
+    return m.group(0) if m else None
+
+
+_WHOLE_RULES: tuple[_WholeRule, ...] = (
+    _WholeRule(
+        Severity.HIGH,
+        "chmod setuid / dangerous mode",
+        _w_setuid,
+        "Avoid setuid binaries in skills.",
+    ),
+    _WholeRule(
+        Severity.CRITICAL,
+        "Docker socket or host root mount",
+        _w_docker_sock,
+        "Do not expose docker.sock or mount host root.",
+    ),
+    _WholeRule(
+        Severity.CRITICAL,
+        "Cron persistence with remote shell pipe",
+        _w_cron_pipe,
+        "Remove persistence installers.",
+    ),
+    _WholeRule(
+        Severity.CRITICAL,
+        "Download then execute with shell",
+        _w_download_and_exec,
+        "Never download-and-execute remote scripts.",
+    ),
+    _WholeRule(
+        Severity.HIGH,
+        "Pipeline into shell variable (evasion)",
+        _w_var_pipe_shell,
+        "Do not pipe remote content into a shell variable.",
+    ),
+)
+
+
+def check(ctx: PackageContext) -> list[Finding]:
+    findings: list[Finding] = []
+    for f in ctx.files:
+        for blob in f.candidates:
+            for stages in split_pipelines(blob):
+                for rule in _PIPELINE_RULES:
+                    evidence = rule.match(stages)
+                    if evidence:
+                        findings.append(
+                            make_finding(
+                                RuleId.SG003,
+                                rule.severity,
+                                title=rule.title,
+                                path=f.relpath,
+                                message=f"Dangerous shell pattern in `{f.relpath}`.",
+                                evidence=evidence,
+                                remediation=rule.remediation,
+                            )
+                        )
+        norm = f.normalized
+        for rule in _WHOLE_RULES:
+            evidence = rule.match(norm)
+            if evidence:
+                findings.append(
+                    make_finding(
+                        RuleId.SG003,
+                        rule.severity,
+                        title=rule.title,
+                        path=f.relpath,
+                        message=f"Dangerous shell pattern in `{f.relpath}`.",
+                        evidence=evidence,
+                        remediation=rule.remediation,
+                    )
+                )
+        if f.kind is FileKind.POWERSHELL:
+            findings.extend(analyze_powershell(f.normalized, f.relpath))
+        elif f.kind is FileKind.MARKDOWN:
+            # PS cradles often appear only inside fenced blocks of SKILL.md
+            for blob in f.candidates:
+                if re.search(r"(?i)\b(IEX|Invoke-Expression|Net\.WebClient|Remove-Item)\b", blob):
+                    findings.extend(analyze_powershell(blob, f.relpath))
+    return findings

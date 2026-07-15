@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import re
 
-from skill_guard.models import Finding, RuleId, Severity, SkillPackage
+from skill_guard.models import Finding, PackageContext, RuleId, Severity
 
 # Named patterns: (rule-sub, severity, regex, title)
 # Order: more specific providers first.
@@ -71,7 +71,7 @@ _PLACEHOLDER = re.compile(
 )
 
 
-def check(pkg: SkillPackage) -> list[Finding]:
+def check(pkg: PackageContext) -> list[Finding]:
     findings: list[Finding] = []
     for f in pkg.files:
         # .env.example often has fake keys — still scan but skip generic assign if example-like
