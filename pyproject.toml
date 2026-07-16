@@ -2,7 +2,7 @@
 # Distribution name (PyPI). CLI entry point stays `skill-guard`.
 # Note: pypi.org/project/skill-guard/ is a different, unrelated package.
 name = "aisona-skill-guard"
-version = "0.2.1"
+version = "0.2.2"
 description = "Audit Agent Skills and packages before they touch your machine. Deterministic checks. Exit codes. No vibes."
 readme = "README.md"
 license = "MIT"

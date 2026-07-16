@@ -27,6 +27,7 @@ from skill_guard.models import (
     Severity,
     make_finding,
 )
+from skill_guard.surface import shell_pipeline_text
 
 _SHELLS = frozenset(
     {"sh", "bash", "zsh", "dash", "ksh", "fish", "csh", "tcsh", "pwsh", "powershell", "powershell.exe"}
@@ -355,59 +356,14 @@ _PS_MARKERS = re.compile(
     r"(?i)\b(IEX|Invoke-Expression|Net\.WebClient|Remove-Item)\b"
 )
 
-# Lines that look like runnable shell (not markdown bullets / headings).
-_CMD_LINE = re.compile(
-    r"(?i)^\s*(?:"
-    r"curl|wget|fetch|rm|chmod|chown|sudo|env|printenv|base64|openssl|"
-    r"bash|sh|zsh|scp|rsync|docker|nc|ncat|mkfs|dd|"
-    r"`[^`]+`"  # inline code command
-    r")"
-)
-
-
-def _commandish_lines(text: str) -> str:
-    """Extract likely shell lines from mixed markdown (adversarial inline code)."""
-    out: list[str] = []
-    for line in text.splitlines():
-        s = line.strip()
-        if not s or s.startswith("#"):
-            continue
-        # Skip pure bullet danger lists: "- rm -rf (especially …)"
-        if re.match(r"^[-*]\s+", s) and "(" in s:
-            continue
-        if re.match(r"^[-*]\s+(rm|chmod|chown)\b", s) and not re.search(
-            r"[|/]|\.sh\b|https?://", s
-        ):
-            # bare list item naming a dangerous command without a pipeline/URL
-            continue
-        # Inline code only: `curl … | zsh`
-        m = re.fullmatch(r"`([^`]+)`", s)
-        if m:
-            out.append(m.group(1))
-            continue
-        if _CMD_LINE.match(s) or re.search(r"\|\s*(ba)?sh\b", s, re.I):
-            # strip leading list marker if present on real command line
-            s2 = re.sub(r"^[-*]\s+", "", s)
-            out.append(s2)
-    return "\n".join(out)
-
 
 def check(ctx: PackageContext) -> list[Finding]:
     findings: list[Finding] = []
     for f in ctx.files:
         norm = f.normalized
         for cand in f.candidates:
-            blob = cand.text
-            # Skip non-shell language fences (perl, ruby, python, js, …).
-            if cand.lang not in (None, "shell", "powershell"):
-                continue
-            # Untagged markdown (full body or ``` fences without lang): only
-            # commandish lines — not danger bullet lists ("- rm -rf /").
-            if f.kind is FileKind.MARKDOWN and cand.lang is None:
-                scan_text = _commandish_lines(blob)
-            else:
-                scan_text = blob
-            if not scan_text.strip():
+            scan_text = shell_pipeline_text(f, cand)
+            if not scan_text:
                 continue
             for stages in split_pipelines(scan_text):
                 for rule in _PIPELINE_RULES:

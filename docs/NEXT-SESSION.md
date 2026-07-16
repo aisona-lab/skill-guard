@@ -2,9 +2,10 @@
 
 **Last updated:** 2026-07-16  
 **Branch:** `main`  
-**Version in tree:** `0.2.1` (Beta — future PyPI name **`aisona-skill-guard`**; CLI `skill-guard`)  
-**Git tag / release:** `v0.2.1` published on GitHub  
-**PyPI:** **deferred** (no token; do not advertise `pip install` until published)  
+**Version in tree:** `0.2.2` (Beta — PyPI name **`aisona-skill-guard`**; CLI `skill-guard`)  
+**Git tag / release:** `v0.2.2`  
+**Detector freeze:** ON — `docs/DETECTOR-FREEZE.md`  
+**PyPI:** **deferred**  
 **Repo:** https://github.com/aisona-lab/skill-guard  
 **Local path:** `/Users/carlos/Projects and Agents/skill-guard`
 
@@ -12,7 +13,7 @@
 
 ## One-line status
 
-Beta **tagged** (`v0.2.1`). Next work: **docs/REAL-SCAN-BACKLOG.md** P0 FPs from ECC/real skills. PyPI deferred. Do not delete `Projects and Agents/ECC` unless user asks (full workspace).
+**v0.2.2** tagged: P0 FPs + `surface` classifier + detector freeze. Next: only freeze exceptions or PyPI. Do not expand detectors without fixtures.
 
 
 ---

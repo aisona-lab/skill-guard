@@ -16,6 +16,7 @@ from skill_guard.models import (
     Severity,
     make_finding,
 )
+from skill_guard.surface import is_script_path, is_source_kind
 
 # High/critical patterns: always flag (match on normalized text).
 _PATTERNS: list[tuple[Severity, re.Pattern[str], str, str]] = [
@@ -130,6 +131,4 @@ def _global_install_findings(
 
 
 def _is_actionable_file(relpath: str, kind: FileKind) -> bool:
-    if relpath.startswith("scripts/") or "/scripts/" in relpath:
-        return True
-    return kind in {FileKind.SHELL, FileKind.POWERSHELL, FileKind.PYTHON, FileKind.JAVASCRIPT}
+    return is_script_path(relpath) or is_source_kind(kind)

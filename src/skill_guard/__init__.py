@@ -9,7 +9,7 @@ from skill_guard.models import (
     Verdict,
 )
 
-__version__ = "0.2.1"
+__version__ = "0.2.2"
 __all__ = [
     "Finding",
     "PackageContext",

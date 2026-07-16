@@ -7,8 +7,8 @@ Beta. Not a runtime firewall. Not 100% detection. Details: [LIMITATIONS.md](LIMI
 
 [![CI](https://github.com/aisona-lab/skill-guard/actions/workflows/ci.yml/badge.svg)](https://github.com/aisona-lab/skill-guard/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-3.12%2B-blue)
-![version](https://img.shields.io/badge/v0.2.1-beta-yellow)
-[![release](https://img.shields.io/github/v/release/aisona-lab/skill-guard?display_name=tag)](https://github.com/aisona-lab/skill-guard/releases/tag/v0.2.1)
+![version](https://img.shields.io/badge/v0.2.2-beta-yellow)
+[![release](https://img.shields.io/github/v/release/aisona-lab/skill-guard?display_name=tag)](https://github.com/aisona-lab/skill-guard/releases/tag/v0.2.2)
 
 ## Install
 
@@ -16,7 +16,7 @@ PyPI not published yet. CLI name is always `skill-guard` (future package name: `
 
 ```bash
 # one-shot
-uvx --from "git+https://github.com/aisona-lab/skill-guard@v0.2.1" skill-guard scan ./my-skill
+uvx --from "git+https://github.com/aisona-lab/skill-guard@v0.2.2" skill-guard scan ./my-skill
 
 # or from a clone
 uv sync && uv run skill-guard scan ./my-skill
@@ -50,7 +50,7 @@ suppress: [SG008]
 CI Action:
 
 ```yaml
-- uses: aisona-lab/skill-guard@v0.2.1
+- uses: aisona-lab/skill-guard@v0.2.2
   with:
     path: ./skills/my-skill
     fail-on: block

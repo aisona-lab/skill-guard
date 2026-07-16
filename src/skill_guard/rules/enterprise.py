@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 
 from skill_guard.context_tone import (
+    agent_policy_wording,
     cli_or_test_context,
     educational_context,
     secret_exfil_context,
@@ -18,6 +19,7 @@ from skill_guard.models import (
     make_finding,
 )
 from skill_guard.paths import CLOUD_METADATA, find_sensitive_paths
+from skill_guard.surface import is_agent_policy_surface, is_test_path
 
 # Patterns that never need CLI/test filtering.
 _PERMISSION_PATTERNS: list[tuple[Severity, re.Pattern[str], str]] = [
@@ -107,27 +109,21 @@ def _bypass_hitl_findings(ctx: PackageContext) -> list[Finding]:
     """Flag agent instructions to skip approval — not CLI/test flag plumbing."""
     findings: list[Finding] = []
     for f in ctx.files:
-        text = f.normalized
-        # Pure test modules rarely encode agent policy.
-        if f.relpath.replace("\\", "/").startswith("tests/") or "/tests/" in f.relpath:
+        if is_test_path(f.relpath):
             continue
+        text = f.normalized
         for m in _BYPASS_HITL.finditer(text):
             if cli_or_test_context(text, m.start(), m.end()):
                 continue
             if educational_context(text, m.start(), m.end()):
                 continue
-            # Python sources: almost always flag help strings / option names.
-            if f.kind is FileKind.PYTHON and cli_or_test_context(
-                text, m.start(), m.end(), radius=200
-            ):
-                continue
-            if f.kind is FileKind.PYTHON:
-                # Skip bare "Skip confirm" in .py unless imperative agent wording nearby.
-                window = text[max(0, m.start() - 80) : m.end() + 80]
-                if re.search(
-                    r"(?i)(agent|skill|always|must|instruct|tell the model)",
-                    window,
-                ) is None:
+            # Markdown skill bodies are policy surface; .py needs agent wording.
+            if not is_agent_policy_surface(f):
+                if f.kind is FileKind.PYTHON and not agent_policy_wording(
+                    text, m.start(), m.end()
+                ):
+                    continue
+                if f.kind is not FileKind.PYTHON and f.kind is not FileKind.MARKDOWN:
                     continue
             findings.append(
                 make_finding(

@@ -5,22 +5,7 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
-
-### Fixed
-
-- **SG006 global install context:** `npm install -g` / `pip install --user` / `cargo install` are MEDIUM only inside fenced code or `scripts/` (and shell/source files). Prose tips (e.g. ponytail-help “update Claude”) no longer WARN. Remote URL installs stay CRITICAL/HIGH.
-
-### Changed
-
-- **Fence language on candidates:** `CodeCandidate {text, lang}` from markdown fence tags (` ```python `, ` ```js `, ` ```bash `, …). SG004 python/js analyzers use tags + `FileKind` only — removed `_looks_python` / `_looks_js` sniffing.
-
-### Fixed (live trending-skill FPs)
-
-- **SG005:** skip educational/anti-example hijack quotes (`context_tone.educational_context`)
-- **SG010:** `${{ secrets.* }}` is CRITICAL only near exfil sinks; bare CI docs → MEDIUM
-- **SG010/SG004:** IMDS / metadata in security-training prose skipped
-- **SG004:** `process.env` env-dump needs real sinks (`fetch(`, `axios.`, …) not bare `http` in CORS strings
+## [0.2.2] — 2026-07-16
 
 ### Added
 
@@ -28,13 +13,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **OOD-unsafe suite:** 8 held-out attack packs + CI gate (recall ≥ 0.70)
 - **Policy packs:** `--pack default|strict` and `pack:` in `.skill-guard.yml`
 - **Known-miss detectors:** split secrets, `exec(base64…)`, base64→shell/IEX, light Ruby Net::HTTP+.ssh
+- **`surface.py`:** fence / script / prose / test classifier (prefer over keyword growth)
+- **Detector freeze** policy: [`docs/DETECTOR-FREEZE.md`](docs/DETECTOR-FREEZE.md)
+- Real-scan backlog: [`docs/REAL-SCAN-BACKLOG.md`](docs/REAL-SCAN-BACKLOG.md)
 
-### Fixed (ECC / real-skill precision P0)
+### Fixed
 
-- SG007: CLI/test “Skip sandbox|confirm” no longer agent-bypass BLOCK
-- SG003: danger bullet lists + non-shell fences (Perl) not tokenized as shell; var-pipe same-line only
-- SG004: English “type credentials”; curl `--get` not POST-exfil; edu filter; `example.com` ≠ educational
-- SG006: markdown `](https://…)` links not remote-install CRITICAL
+- **SG006 global install context:** MEDIUM only in fences/scripts; prose tips clean
+- **SG006 markdown links:** `](https://…)` not treated as install URL
+- **SG005 / SG010 / SG004 edu FPs:** educational windows; CI secrets severity; IMDS training; process.env CORS
+- **SG007:** CLI/test “Skip sandbox|confirm” not agent-bypass BLOCK
+- **SG003:** danger bullet lists; non-shell fences; var-pipe same-line only; commandish MD lines
+- **SG004:** Windows `type` path-only; curl `--get` excluded from POST-exfil; `example.com` ≠ edu
+- Fence language on candidates (`CodeCandidate.lang`); removed `_looks_python` / `_looks_js`
+
+### Changed
+
+- README shortened (ponytail-style install/use/eval/improve)
+- `context_tone` thinned; structural routing moved to `surface`
 
 ## [0.2.1] — 2026-07-15
 
@@ -51,8 +47,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Packaging
 
 - **PyPI name:** `aisona-skill-guard` (PyPI `skill-guard` is a different upstream; CLI entry point remains `skill-guard`)
-- README install is **Git/source-first** while PyPI is deferred (no broken `pip install` path; release badge instead of empty PyPI badge)
-- README rewritten shorter (ponytail-style) + **Improve next** from real skill scans
+- README install is **Git/source-first** while PyPI is deferred
 
 ### Fixed
 
@@ -60,16 +55,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `chmod 600` no longer flagged as setuid
 - JS `child_process` requires strong sinks (not bare `sh`)
 - `.env` + network co-occurrence requires exfil-shaped context
-- Bare `GITHUB_TOKEN` mention is MEDIUM; `${{ secrets.* }}` stays CRITICAL
+- Bare `GITHUB_TOKEN` mention is MEDIUM; `${{ secrets.* }}` stays CRITICAL (later refined in 0.2.2)
 - GitHub Action no longer double-scans when writing SARIF
-- GitHub Action path parsing: newline-delimited (supports spaces); no bare word-split
-- SARIF multi-target URIs use `Path` join instead of string `//` scrubbing
+- GitHub Action path parsing: newline-delimited (supports spaces)
+- SARIF multi-target URIs use `Path` join
 
 ### Changed
 
-- PackageContext / AnalyzedFile: normalize once at load (from 0.2.x refactor line)
+- PackageContext / AnalyzedFile: normalize once at load
 - Shell detection is table-driven (pipeline + whole-file rules)
-- Action `path` input: newline-separated multi-path (not space-separated)
+- Action `path` input: newline-separated multi-path
 
 ## [0.2.0] — 2026-07-15
 
@@ -85,8 +80,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Initial deterministic skill package auditor (SG001–SG010)
-- Core fixtures, CLI exit codes ALLOW/WARN/BLOCK
-
-[0.2.1]: https://github.com/aisona-lab/skill-guard/compare/v0.2.0...v0.2.1
-[0.2.0]: https://github.com/aisona-lab/skill-guard/compare/v0.1.0...v0.2.0
-[0.1.0]: https://github.com/aisona-lab/skill-guard/releases/tag/v0.1.0
