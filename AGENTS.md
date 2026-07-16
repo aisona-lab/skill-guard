@@ -62,9 +62,10 @@ LIMITATIONS.md
 
 Order matches README **Improve next**:
 
-1. ~~SG006 / fence-lang / live FPs / known misses / metrics / ood-unsafe / packs~~ **done**
-2. **PyPI deferred** — tag `v0.2.1` exists; publish `aisona-skill-guard` when token ready
-3. Only later: agent-firewall (runtime); more langs as FPs appear
+1. ~~prior arc~~ **done** (see CHANGELOG Unreleased)
+2. **P0 real-scan FPs** — `docs/REAL-SCAN-BACKLOG.md` (ECC-driven)
+3. **PyPI deferred** — `aisona-skill-guard` when token ready
+4. Only later: agent-firewall (runtime)
 
 ## Lab context
 

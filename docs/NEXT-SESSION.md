@@ -12,7 +12,8 @@
 
 ## One-line status
 
-Beta **tagged** (`v0.2.1`). Full improve-next arc shipped except PyPI. Suites: core/adv/ood/ood-unsafe. Packs: default|strict.
+Beta **tagged** (`v0.2.1`). Next work: **docs/REAL-SCAN-BACKLOG.md** P0 FPs from ECC/real skills. PyPI deferred. Do not delete `Projects and Agents/ECC` unless user asks (full workspace).
+
 
 ---
 
