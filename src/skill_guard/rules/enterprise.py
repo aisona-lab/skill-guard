@@ -4,10 +4,22 @@ from __future__ import annotations
 
 import re
 
-from skill_guard.context_tone import educational_context, secret_exfil_context
-from skill_guard.models import Finding, PackageContext, RuleId, Severity, make_finding
+from skill_guard.context_tone import (
+    cli_or_test_context,
+    educational_context,
+    secret_exfil_context,
+)
+from skill_guard.models import (
+    FileKind,
+    Finding,
+    PackageContext,
+    RuleId,
+    Severity,
+    make_finding,
+)
 from skill_guard.paths import CLOUD_METADATA, find_sensitive_paths
 
+# Patterns that never need CLI/test filtering.
 _PERMISSION_PATTERNS: list[tuple[Severity, re.Pattern[str], str]] = [
     (
         Severity.HIGH,
@@ -25,14 +37,6 @@ _PERMISSION_PATTERNS: list[tuple[Severity, re.Pattern[str], str]] = [
     (
         Severity.HIGH,
         re.compile(
-            r"(?i)(disable|bypass|skip)\s+(approval|permission|sandbox|confirm|"
-            r"human[- ]in[- ]the[- ]loop|HITL)"
-        ),
-        "Instruction to bypass human approval / sandbox",
-    ),
-    (
-        Severity.HIGH,
-        re.compile(
             r"(?i)(\.\./|\.\.\\).{0,40}(\.ssh|authorized_keys|\.aws|credentials)"
         ),
         "Path traversal toward credential locations",
@@ -45,6 +49,16 @@ _PERMISSION_PATTERNS: list[tuple[Severity, re.Pattern[str], str]] = [
         "Recursive ownership/permission change under home",
     ),
 ]
+
+# Agent-facing bypass only. "Skip sandbox/confirm" as CLI flags is filtered out.
+_BYPASS_HITL = re.compile(
+    r"(?i)\b(disable|bypass)\s+(?:the\s+|all\s+)?"
+    r"(approval|permission|sandbox|confirm|"
+    r"human[- ]in[- ]the[- ]loop|HITL)\b"
+    r"|\bskip\s+(?:all\s+|the\s+)?"
+    r"(approval|permission|sandbox|confirmations?|"
+    r"human[- ]in[- ]the[- ]loop|HITL)\b"
+)
 
 _SECRETS_EXPANSION = re.compile(r"(?i)\$\{\{\s*secrets\.[A-Za-z0-9_]+\s*\}\}")
 _AWS_SECRET_ASSIGN = re.compile(r"(?i)AWS_SECRET_ACCESS_KEY\s*=")
@@ -84,7 +98,53 @@ _POLICY_PATTERNS: list[tuple[Severity, re.Pattern[str], str]] = [
 
 
 def check_permissions(ctx: PackageContext) -> list[Finding]:
-    return _scan(ctx, RuleId.SG007, _PERMISSION_PATTERNS)
+    findings = _scan(ctx, RuleId.SG007, _PERMISSION_PATTERNS)
+    findings.extend(_bypass_hitl_findings(ctx))
+    return findings
+
+
+def _bypass_hitl_findings(ctx: PackageContext) -> list[Finding]:
+    """Flag agent instructions to skip approval — not CLI/test flag plumbing."""
+    findings: list[Finding] = []
+    for f in ctx.files:
+        text = f.normalized
+        # Pure test modules rarely encode agent policy.
+        if f.relpath.replace("\\", "/").startswith("tests/") or "/tests/" in f.relpath:
+            continue
+        for m in _BYPASS_HITL.finditer(text):
+            if cli_or_test_context(text, m.start(), m.end()):
+                continue
+            if educational_context(text, m.start(), m.end()):
+                continue
+            # Python sources: almost always flag help strings / option names.
+            if f.kind is FileKind.PYTHON and cli_or_test_context(
+                text, m.start(), m.end(), radius=200
+            ):
+                continue
+            if f.kind is FileKind.PYTHON:
+                # Skip bare "Skip confirm" in .py unless imperative agent wording nearby.
+                window = text[max(0, m.start() - 80) : m.end() + 80]
+                if re.search(
+                    r"(?i)(agent|skill|always|must|instruct|tell the model)",
+                    window,
+                ) is None:
+                    continue
+            findings.append(
+                make_finding(
+                    RuleId.SG007,
+                    Severity.HIGH,
+                    title="Instruction to bypass human approval / sandbox",
+                    path=f.relpath,
+                    message=f"Enterprise policy concern in `{f.relpath}`.",
+                    evidence=m.group(0),
+                    remediation=(
+                        "Remove or tightly scope privileged operations; "
+                        "document business need."
+                    ),
+                    line=text.count("\n", 0, m.start()) + 1,
+                )
+            )
+    return findings
 
 
 def check_policy(ctx: PackageContext) -> list[Finding]:

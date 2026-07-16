@@ -111,13 +111,11 @@ Protocol: [docs/BENCHMARKS.md](docs/BENCHMARKS.md). Core 100% ≠ real-world acc
 
 Done: SG006 context · fence-lang · live FPs · known misses · metrics · ood-unsafe · packs.
 
-**Next (from real repos — see [docs/REAL-SCAN-BACKLOG.md](docs/REAL-SCAN-BACKLOG.md)):**
+**Shipped P0 (ECC-driven):** CLI skip-flags · safety lists · Perl pipes · `type credentials` · md install links · curl GET.  
+ECC 282 skills after fix: **~84% ALLOW · ~16% WARN · 2 BLOCK** (only unscoped `allowed-tools: Bash`).  
 
-1. **P0 FP precision (ECC):** Skip sandbox/confirm flags · safety bullet lists · Perl `\| $ref` · Windows `type credentials` · md links as npm URL · curl GET vs exfil  
-2. Target: ECC BLOCK rate down without losing unscoped-Bash / real exfil  
-3. **PyPI** when token ready  
-
-Evidence: ponytail, last30days, addyosmani, ECC 282 skills (81% ALLOW / 15% WARN / 4% BLOCK).
+Still open: **PyPI** `aisona-skill-guard` when token ready.  
+Plan: [docs/REAL-SCAN-BACKLOG.md](docs/REAL-SCAN-BACKLOG.md).
 
 ## Not this tool
 

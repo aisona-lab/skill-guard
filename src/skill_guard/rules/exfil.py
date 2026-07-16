@@ -10,6 +10,7 @@ import re
 
 from skill_guard.analysis.lang_js import analyze_js
 from skill_guard.analysis.lang_python import analyze_python
+from skill_guard.context_tone import educational_context
 from skill_guard.models import (
     FileKind,
     Finding,
@@ -30,17 +31,29 @@ _RUBY_EXFIL = re.compile(
 _CLASSIC: list[tuple[Severity, re.Pattern[str], str]] = [
     (
         Severity.CRITICAL,
+        # Unix readers — not English "type credentials" (Windows `type` is separate).
         re.compile(
-            r"(?i)(cat|type|Get-Content|head|tail)\s+[^\n]{0,60}"
+            r"(?i)(cat|Get-Content|head|tail)\s+[^\n]{0,60}"
             r"(\.ssh/|\.aws/|\.gnupg/|\.kube/|id_rsa|\.env\b|credentials)"
         ),
         "Read sensitive local credential paths",
     ),
     (
         Severity.CRITICAL,
+        # Windows `type` only with a path-like argument (slash/backslash/drive).
         re.compile(
-            r"(?i)(curl|wget)\s+[^\n]{0,100}(-d|--data|--data-raw|-F|--form)\b[^\n]{0,100}"
-            r"(HOME|\.ssh|\.env|id_rsa|credentials|passwd)"
+            r"(?i)\btype\s+(?:[A-Za-z]:\\|[\w.]*[/\\]|%~?[\w]+%)[^\n]{0,80}"
+            r"(\.ssh|\.aws|id_rsa|\.env\b|credentials\.\w+|passwd)"
+        ),
+        "Read sensitive local credential paths",
+    ),
+    (
+        Severity.CRITICAL,
+        # POST/form upload only — exclude --get/-G status pings (DuckDNS, healthchecks).
+        re.compile(
+            r"(?i)(curl|wget)\s+(?![^\n]{0,80}(?:--get|-G)\b)[^\n]{0,100}"
+            r"(-d|--data|--data-raw|-F|--form)\b[^\n]{0,100}"
+            r"(HOME|\.ssh|\.env|id_rsa|\bcredentials\b|passwd)"
         ),
         "curl/wget POST of sensitive paths",
     ),
@@ -90,6 +103,8 @@ def check(ctx: PackageContext) -> list[Finding]:
     for f in ctx.files:
         for severity, pattern, title in _CLASSIC:
             for m in pattern.finditer(f.normalized):
+                if educational_context(f.normalized, m.start(), m.end()):
+                    continue
                 findings.append(
                     make_finding(
                         RuleId.SG004,

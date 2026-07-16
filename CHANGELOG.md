@@ -29,6 +29,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Policy packs:** `--pack default|strict` and `pack:` in `.skill-guard.yml`
 - **Known-miss detectors:** split secrets, `exec(base64…)`, base64→shell/IEX, light Ruby Net::HTTP+.ssh
 
+### Fixed (ECC / real-skill precision P0)
+
+- SG007: CLI/test “Skip sandbox|confirm” no longer agent-bypass BLOCK
+- SG003: danger bullet lists + non-shell fences (Perl) not tokenized as shell; var-pipe same-line only
+- SG004: English “type credentials”; curl `--get` not POST-exfil; edu filter; `example.com` ≠ educational
+- SG006: markdown `](https://…)` links not remote-install CRITICAL
+
 ## [0.2.1] — 2026-07-15
 
 ### Added

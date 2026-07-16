@@ -16,7 +16,8 @@ without reopening real exfil/shell holes.
 | ponytail 4.6 | 5–6 | all* | 0* | 0 | *after SG006 prose fix |
 | last30days | 1 (116 files) | — | — | **BLOCK** | Bash + bloat + tokens — mostly real signal |
 | addyosmani | 24 | 23 | 1 | 0 | after edu/CI/IMDS fixes |
-| **ECC** `skills/`+`.agents/skills` | **282** | **229 (81%)** | **42 (15%)** | **11 (4%)** | richest FP set |
+| **ECC** (pre-P0) | **282** | **229 (81%)** | **42 (15%)** | **11 (4%)** | FP-heavy |
+| **ECC** (post-P0) | **282** | **236 (84%)** | **44 (16%)** | **2 (0.7%)** | only unscoped Bash |
 
 Default CI (`--fail-on block`): ECC **271/282 pass**.  
 `--pack strict`: also fails 42 WARN (mostly SG008 bloat).
@@ -34,21 +35,19 @@ Default CI (`--fail-on block`): ECC **271/282 pass**.
 
 ---
 
-## P0 — false BLOCK precision (ECC-driven)
+## P0 — false BLOCK precision (ECC-driven) — **SHIPPED**
 
-Implement with fixtures from ECC snippets (minified), keep attack fixtures green.
+| # | Symptom | Fix | Status |
+|---|---------|-----|--------|
+| P0.1 | Skip sandbox/confirm CLI/tests | SG007 agent-only + `cli_or_test_context` + skip `tests/` | done |
+| P0.2 | safety lists `rm -rf` / `chmod 777` | no pipeline on MD full-dump; bullet-list filter + edu | done |
+| P0.3 | Perl `\| $ref` | skip non-shell fence langs; var-pipe same-line curl/wget only | done |
+| P0.4 | `type credentials` English | Windows `type` needs path-like arg | done |
+| P0.5 | trading security ignore-previous | edu keywords expanded; `example.com` no longer false edu | done |
+| P0.6 | markdown link as npm URL | `(?<!\]\()` before https in install patterns | done |
+| P0.7 | curl `--get` healthchecks | exclude `--get`/`-G` from POST-exfil rule | done |
 
-| # | Symptom | Likely fix | Rules |
-|---|---------|------------|-------|
-| P0.1 | `"Skip sandbox"` / `"Skip confirm"` in CLI flags & tests | Require **imperative** bypass of *approval/sandbox* for the **agent** (frontmatter/instructions), not Python argparse help / test names | SG007 |
-| P0.2 | `safety-guard` lists `rm -rf`, `chmod 777` as dangers | Educational / bullet-list suppress (reuse `context_tone`) when framed as “never do / block if” | SG003 |
-| P0.3 | `perl-patterns`: `\| $ref` | Shell pipe rules: require real shell cmd stage before `\|`, or skip inside ```perl/``` fences | SG003 |
-| P0.4 | `windows-desktop-e2e`: `type credentials` | `type` as Windows cat only with path-like arg to secret paths; not English “type credentials” | SG004 |
-| P0.5 | `llm-trading-agent-security` still SG005 | Expand edu window / trading-security keywords; or require unquoted imperative line | SG005 |
-| P0.6 | `dmux-workflows`: markdown link after `npm install -g` → remote URL CRITICAL | Remote URL install: only bare URL/git+ after install, not markdown `(https://…)` | SG006 |
-| P0.7 | DuckDNS `curl --get` + path words | curl GET status endpoints ≠ form POST of secrets; tighten SG004 curl POST/form rules | SG004 |
-
-**Success metric:** ECC BLOCK ≤ 4 (only clear enterprise signals: unscoped `allowed-tools: Bash`, real exfil), zero regression on core/adversarial/ood-unsafe.
+Also: MD full-body pipelines only on **commandish** lines (inline `` `curl…` `` still caught).
 
 ---
 

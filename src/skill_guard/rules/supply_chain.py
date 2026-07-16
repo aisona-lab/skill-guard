@@ -21,9 +21,10 @@ from skill_guard.models import (
 _PATTERNS: list[tuple[Severity, re.Pattern[str], str, str]] = [
     (
         Severity.CRITICAL,
+        # Require install arg that is a URL — not markdown "](https://…)" links.
         re.compile(
-            r"(?i)\b(npm|pnpm|yarn)\s+install\b[^\n]{0,80}"
-            r"(https?://|git\+|github:|gist\.github)"
+            r"(?i)\b(npm|pnpm|yarn)\s+install\b[^\n]{0,60}"
+            r"(?<!\]\()(?<!\[)(https?://|git\+|github:[A-Za-z0-9_.-]+/|gist\.github)"
         ),
         "Install package from remote URL",
         "Pin to a registry package with version and integrity hash.",
@@ -31,8 +32,8 @@ _PATTERNS: list[tuple[Severity, re.Pattern[str], str, str]] = [
     (
         Severity.CRITICAL,
         re.compile(
-            r"(?i)\bpip\s+install\b[^\n]{0,120}"
-            r"(https?://|git\+https|git\+ssh|--index-url|--extra-index-url)"
+            r"(?i)\bpip\s+install\b[^\n]{0,100}"
+            r"(?<!\]\()(https?://|git\+https|git\+ssh|--index-url|--extra-index-url)"
         ),
         "pip install from remote URL or custom index",
         "Install from PyPI with a pinned version, or vendor the package.",

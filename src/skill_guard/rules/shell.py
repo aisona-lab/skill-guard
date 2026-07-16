@@ -18,6 +18,7 @@ from skill_guard.analysis.shell_tokens import (
     split_pipelines,
     stage_words,
 )
+from skill_guard.context_tone import educational_context
 from skill_guard.models import (
     FileKind,
     Finding,
@@ -289,10 +290,12 @@ def _w_download_and_exec(text: str) -> str | None:
 
 
 def _w_var_pipe_shell(text: str) -> str | None:
-    if not re.search(r"(?i)\b(curl|wget|fetch)\b", text):
-        return None
-    m = re.search(r"(?i)\|\s*\$\{?[A-Za-z_][A-Za-z0-9_]*\}?\b", text)
-    return m.group(0) if m else None
+    """Fetcher and pipe-to-$var on the *same* line (Perl ``| $ref`` is not this)."""
+    m = re.search(
+        r"(?i)\b(curl|wget|fetch)\b[^\n]{0,160}\|\s*\$\{?[A-Za-z_][A-Za-z0-9_]*\}?\b",
+        text,
+    )
+    return m.group(0)[:120] if m else None
 
 
 def _w_b64_decode_exec(text: str) -> str | None:
@@ -352,33 +355,82 @@ _PS_MARKERS = re.compile(
     r"(?i)\b(IEX|Invoke-Expression|Net\.WebClient|Remove-Item)\b"
 )
 
+# Lines that look like runnable shell (not markdown bullets / headings).
+_CMD_LINE = re.compile(
+    r"(?i)^\s*(?:"
+    r"curl|wget|fetch|rm|chmod|chown|sudo|env|printenv|base64|openssl|"
+    r"bash|sh|zsh|scp|rsync|docker|nc|ncat|mkfs|dd|"
+    r"`[^`]+`"  # inline code command
+    r")"
+)
+
+
+def _commandish_lines(text: str) -> str:
+    """Extract likely shell lines from mixed markdown (adversarial inline code)."""
+    out: list[str] = []
+    for line in text.splitlines():
+        s = line.strip()
+        if not s or s.startswith("#"):
+            continue
+        # Skip pure bullet danger lists: "- rm -rf (especially …)"
+        if re.match(r"^[-*]\s+", s) and "(" in s:
+            continue
+        if re.match(r"^[-*]\s+(rm|chmod|chown)\b", s) and not re.search(
+            r"[|/]|\.sh\b|https?://", s
+        ):
+            # bare list item naming a dangerous command without a pipeline/URL
+            continue
+        # Inline code only: `curl … | zsh`
+        m = re.fullmatch(r"`([^`]+)`", s)
+        if m:
+            out.append(m.group(1))
+            continue
+        if _CMD_LINE.match(s) or re.search(r"\|\s*(ba)?sh\b", s, re.I):
+            # strip leading list marker if present on real command line
+            s2 = re.sub(r"^[-*]\s+", "", s)
+            out.append(s2)
+    return "\n".join(out)
+
 
 def check(ctx: PackageContext) -> list[Finding]:
     findings: list[Finding] = []
     for f in ctx.files:
+        norm = f.normalized
         for cand in f.candidates:
             blob = cand.text
-            # Shell pipelines: tagged shell fences + untagged/full (legacy body).
-            if cand.lang in (None, "shell", "powershell"):
-                for stages in split_pipelines(blob):
-                    for rule in _PIPELINE_RULES:
-                        evidence = rule.match(stages)
-                        if evidence:
-                            findings.append(
-                                make_finding(
-                                    RuleId.SG003,
-                                    rule.severity,
-                                    title=rule.title,
-                                    path=f.relpath,
-                                    message=f"Dangerous shell pattern in `{f.relpath}`.",
-                                    evidence=evidence,
-                                    remediation=rule.remediation,
-                                )
+            # Skip non-shell language fences (perl, ruby, python, js, …).
+            if cand.lang not in (None, "shell", "powershell"):
+                continue
+            # Untagged markdown (full body or ``` fences without lang): only
+            # commandish lines — not danger bullet lists ("- rm -rf /").
+            if f.kind is FileKind.MARKDOWN and cand.lang is None:
+                scan_text = _commandish_lines(blob)
+            else:
+                scan_text = blob
+            if not scan_text.strip():
+                continue
+            for stages in split_pipelines(scan_text):
+                for rule in _PIPELINE_RULES:
+                    evidence = rule.match(stages)
+                    if evidence:
+                        findings.append(
+                            make_finding(
+                                RuleId.SG003,
+                                rule.severity,
+                                title=rule.title,
+                                path=f.relpath,
+                                message=f"Dangerous shell pattern in `{f.relpath}`.",
+                                evidence=evidence,
+                                remediation=rule.remediation,
                             )
-        norm = f.normalized
+                        )
         for rule in _WHOLE_RULES:
             evidence = rule.match(norm)
             if evidence:
+                # Whole-file match position approx for edu filter
+                idx = norm.find(evidence) if evidence else -1
+                if idx >= 0 and educational_context(norm, idx, idx + len(evidence)):
+                    continue
                 findings.append(
                     make_finding(
                         RuleId.SG003,
