@@ -1,26 +1,28 @@
 # skill-guard
 
-**Scan an Agent Skill before it runs on your machine.**  
+Scan an [Agent Skill](https://agentskills.io/specification) **before** it runs on your machine.  
 Offline. Deterministic. No skill code executed. Exit codes for CI.
 
-Beta. Not a runtime firewall. Not 100% detection. Details: [LIMITATIONS.md](LIMITATIONS.md).
+Beta — not a runtime firewall. See [LIMITATIONS.md](LIMITATIONS.md).
 
 [![CI](https://github.com/aisona-lab/skill-guard/actions/workflows/ci.yml/badge.svg)](https://github.com/aisona-lab/skill-guard/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/aisona-skill-guard.svg)](https://pypi.org/project/aisona-skill-guard/)
 ![Python](https://img.shields.io/badge/python-3.12%2B-blue)
 ![version](https://img.shields.io/badge/v0.2.2-beta-yellow)
-[![release](https://img.shields.io/github/v/release/aisona-lab/skill-guard?display_name=tag)](https://github.com/aisona-lab/skill-guard/releases/tag/v0.2.2)
 
 ## Install
 
-PyPI not published yet. CLI name is always `skill-guard` (future package name: `aisona-skill-guard` — PyPI `skill-guard` is someone else).
+PyPI package: **`aisona-skill-guard`** (name `skill-guard` is a different project). CLI: **`skill-guard`**.
 
 ```bash
-# one-shot
-uvx --from "git+https://github.com/aisona-lab/skill-guard@v0.2.2" skill-guard scan ./my-skill
+pip install aisona-skill-guard
+# or
+uv tool install aisona-skill-guard
 
-# or from a clone
-uv sync && uv run skill-guard scan ./my-skill
+skill-guard scan ./my-skill
 ```
+
+From git: `uvx --from "git+https://github.com/aisona-lab/skill-guard@v0.2.2" skill-guard scan ./my-skill`
 
 ## Use
 
@@ -28,26 +30,22 @@ uv sync && uv run skill-guard scan ./my-skill
 skill-guard scan ./my-skill
 skill-guard scan ./a ./b --json
 skill-guard scan ./my-skill --sarif-file out.sarif
-skill-guard scan ./my-skill --fail-on warn   # also fail on MEDIUM
-skill-guard scan ./my-skill --pack strict    # same as fail-on warn
+skill-guard scan ./my-skill --pack strict    # fail on WARN+
 ```
 
 | Exit | Meaning |
 |-----:|---------|
-| 0 | ALLOW (default: WARN does not fail; only BLOCK does) |
-| 1 | WARN (`--fail-on warn`) |
+| 0 | ALLOW (default: WARN ok) |
+| 1 | WARN (`--fail-on warn` / `--pack strict`) |
 | 2 | BLOCK |
-| 3 | bad usage |
-
-Config (optional) `.skill-guard.yml`:
+| 3 | usage error |
 
 ```yaml
+# .skill-guard.yml
 pack: default   # or strict
-fail_on: block  # overrides pack if set
+fail_on: block
 suppress: [SG008]
 ```
-
-CI Action:
 
 ```yaml
 - uses: aisona-lab/skill-guard@v0.2.2
@@ -56,76 +54,62 @@ CI Action:
     fail-on: block
 ```
 
-Paths in the Action are **newline-separated** (spaces in paths OK).
+Paths in the Action are **newline-separated**.
 
-## What it flags
+## Rules
 
-| ID | Looks for |
-|----|-----------|
-| SG001 | Broken skill structure |
-| SG002 | Hardcoded secrets |
+| ID | Flags |
+|----|--------|
+| SG001 | Structure |
+| SG002 | Secrets |
 | SG003 | Dangerous shell / PS |
-| SG004 | Credential / env exfil |
-| SG005 | Prompt hijack in body |
-| SG006 | Risky installs (`npm -g`, remote pip…) |
-| SG007 | Blast radius / path escape |
-| SG008 | Token bloat |
+| SG004 | Exfil |
+| SG005 | Prompt hijack |
+| SG006 | Supply-chain install |
+| SG007 | Blast radius / HITL bypass |
+| SG008 | Bloat |
 | SG009 | Identity spoof |
-| SG010 | Enterprise (docker.sock, IMDS, cloud creds…) |
+| SG010 | Enterprise (IMDS, docker.sock, CI secrets…) |
 
-Never runs the skill. Text + scripts only.
-
-## Live check (real skills)
+## Live check
 
 ```bash
-# ponytail pack — all ALLOW (prose npm -g tips are not WARN)
 skill-guard scan ~/.claude/plugins/cache/ponytail/ponytail/*/skills/*
-
-# fenced global install still WARNs
-skill-guard scan dataset/ood/safe/vercel/deploy-to-vercel
-
-# should BLOCK
-skill-guard scan dataset/fixtures/malicious/curl-pipe-shell
+skill-guard scan dataset/fixtures/malicious/curl-pipe-shell   # BLOCK
 ```
 
-## Eval (do not mix numbers)
+### Real-skill scan results (v0.2.2)
 
-| Suite | Measures | Gate |
-|-------|----------|------|
-| core | hand fixtures | recall ≥ 0.95, FPR ≤ 0.05 |
-| adversarial | attack variants we wrote | recall ≥ 0.75 |
-| ood | real safe skills | false BLOCK ≤ 0.05 |
-| ood-unsafe | held-out attacks | recall ≥ 0.70, n ≥ 5 |
+Default policy: **`--fail-on block`** (WARN does not fail).
 
-Reports **soft rule_recall** (any expected rule), **strict_rule_recall** (all expected), and **wrong_rule_block** (BLOCK without expected rule).
+| Corpus | n | ALLOW | WARN | BLOCK | Notes |
+|--------|--:|------:|-----:|------:|-------|
+| [ponytail](https://github.com/DietrichGebert/ponytail) plugin skills | 5–6 | ~100% | 0 | 0 | prose `npm -g` not WARN |
+| In-repo **ood** safe (public skills vendored) | 73 | ~85% | ~15% | **0** | FPR gate |
+| [addyosmani/agent-skills](https://github.com/addyosmani/agent-skills) | 24 | 23 | 1 | 0 | CI secrets → WARN only |
+| [mvanhorn/last30days-skill](https://github.com/mvanhorn/last30days-skill) | 1 (116 files) | — | — | **1** | unscoped Bash + pack size |
+| [affaan-m/ECC](https://github.com/affaan-m/ECC) `skills/` + `.agents/skills` | 282 | 236 | 44 | **2** | only unscoped `allowed-tools: Bash` |
+| In-repo **ood-unsafe** (held-out attacks) | 8 | 0 | 0 | **8** | recall gate |
+
+| Suite (CI) | Gate |
+|------------|------|
+| core | unsafe recall ≥ 0.95, safe FPR ≤ 0.05 |
+| adversarial | attack recall ≥ 0.75 |
+| ood | false BLOCK ≤ 0.05, n ≥ 40 |
+| ood-unsafe | attack recall ≥ 0.70, n ≥ 5 |
 
 ```bash
-uv run python eval/selftest.py
 uv run python eval/run_eval.py --suite all --check
 uv run pytest -q
 ```
 
-Protocol: [docs/BENCHMARKS.md](docs/BENCHMARKS.md). Core 100% ≠ real-world accuracy.
+Details: [docs/BENCHMARKS.md](docs/BENCHMARKS.md) · [LIMITATIONS.md](LIMITATIONS.md)
 
-## Improve next
+## Not this
 
-Done: SG006 context · fence-lang · live FPs · known misses · metrics · ood-unsafe · packs.
+Runtime firewall · LLM-as-judge · MCP audit · perfect evasion coverage.
 
-**Shipped P0 (ECC-driven):** CLI skip-flags · safety lists · Perl pipes · `type credentials` · md install links · curl GET.  
-ECC 282 skills after fix: **~84% ALLOW · ~16% WARN · 2 BLOCK** (only unscoped `allowed-tools: Bash`).  
-
-Still open: **PyPI** `aisona-skill-guard` when token ready.  
-Plan: [docs/REAL-SCAN-BACKLOG.md](docs/REAL-SCAN-BACKLOG.md).
-
-## Not this tool
-
-Runtime tool firewall · LLM-as-judge primary detector · MCP server audit · “catches every evasion”.
-
-Sibling trust tools: [prompt-guard](https://github.com/aisona-lab/prompt-guard) · [OrcaI](https://github.com/aisona-lab/OrcaI) · [lazycoder](https://github.com/aisona-lab/lazycoder).
-
-## Docs
-
-[LIMITATIONS](LIMITATIONS.md) · [CHANGELOG](CHANGELOG.md) · [DECISIONS](docs/DECISIONS.md) · [BENCHMARKS](docs/BENCHMARKS.md)
+[prompt-guard](https://github.com/aisona-lab/prompt-guard) · [OrcaI](https://github.com/aisona-lab/OrcaI) · [lazycoder](https://github.com/aisona-lab/lazycoder)
 
 ## License
 
