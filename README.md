@@ -9,7 +9,7 @@
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![version](https://img.shields.io/badge/version-0.2.1-informational)
 ![status](https://img.shields.io/badge/status-beta-yellow)
-[![PyPI](https://img.shields.io/pypi/v/aisona-skill-guard.svg)](https://pypi.org/project/aisona-skill-guard/)
+[![GitHub release](https://img.shields.io/github/v/release/aisona-lab/skill-guard?display_name=tag)](https://github.com/aisona-lab/skill-guard/releases/tag/v0.2.1)
 
 Pre-install security linter for [Agent Skills](https://agentskills.io/specification) (`SKILL.md` packages). Scans the **whole package** (markdown + scripts) offline. Never executes skill code.
 
@@ -19,18 +19,22 @@ Part of [aisona-lab](https://github.com/aisona-lab) trust tooling next to [promp
 
 ## Install
 
-PyPI distribution name is **`aisona-skill-guard`** (the name `skill-guard` is already taken on PyPI by an unrelated project). The CLI remains `skill-guard`.
+**PyPI is not published yet** (deferred). Use GitHub release / source. The future distribution name will be **`aisona-skill-guard`** (PyPI `skill-guard` is a different, unrelated package). The CLI is always `skill-guard`.
 
 ```bash
-pip install aisona-skill-guard
-# or
-uv tool install aisona-skill-guard
+# pinned release (recommended)
+uvx --from "git+https://github.com/aisona-lab/skill-guard@v0.2.1" skill-guard scan ./path/to/skill
 
-skill-guard scan ./path/to/skill
-
-# from source
+# from a clone
 uv sync
 uv run skill-guard scan ./path/to/skill
+
+# GitHub Action (works today)
+# uses: aisona-lab/skill-guard@v0.2.1
+
+# after PyPI publish (not available yet):
+# pip install aisona-skill-guard
+# uv tool install aisona-skill-guard
 ```
 
 ## Usage

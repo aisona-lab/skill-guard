@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Packaging
 
 - **PyPI name:** `aisona-skill-guard` (PyPI `skill-guard` is a different upstream; CLI entry point remains `skill-guard`)
+- README install is **Git/source-first** while PyPI is deferred (no broken `pip install` path; release badge instead of empty PyPI badge)
 
 ### Fixed
 

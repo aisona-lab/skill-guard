@@ -60,7 +60,7 @@ LIMITATIONS.md
 
 ## Next work (do not invent new scope)
 
-1. **Publish:** `uv build && uv publish` + `git tag v0.2.1` (if not done).
+1. **PyPI deferred** — tag `v0.2.1` + GitHub Release already exist; publish `aisona-skill-guard` only when a token is ready.
 2. **Fence language** on candidates → drop `_looks_python` / `_looks_js` in exfil.
 3. **Policy packs** (`default` / `strict`) + richer suppressions.
 4. Only later: agent-firewall (runtime), more rules with OOD coverage.

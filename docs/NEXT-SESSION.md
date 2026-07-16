@@ -1,10 +1,10 @@
 # Next session handoff — skill-guard
 
-**Last updated:** 2026-07-15  
-**Branch:** `main` @ `662c866`  
-**Version in tree:** `0.2.1` (Beta — PyPI name **`aisona-skill-guard`**; CLI `skill-guard`)  
+**Last updated:** 2026-07-16  
+**Branch:** `main`  
+**Version in tree:** `0.2.1` (Beta — future PyPI name **`aisona-skill-guard`**; CLI `skill-guard`)  
 **Git tag / release:** `v0.2.1` published on GitHub  
-**PyPI:** **pending credentials** (`UV_PUBLISH_TOKEN` / trusted publisher) — dist name must be `aisona-skill-guard` (`skill-guard` is taken on PyPI by unrelated project)  
+**PyPI:** **deferred** (no token; do not advertise `pip install` until published)  
 **Repo:** https://github.com/aisona-lab/skill-guard  
 **Local path:** `/Users/carlos/Projects and Agents/skill-guard`
 
@@ -12,7 +12,7 @@
 
 ## One-line status
 
-Beta **tagged and released on GitHub** (`v0.2.1`). README leads with LIMITATIONS. Wheel/sdist built as `aisona-skill-guard`. **PyPI upload still needs an API token** on this machine. After publish: announce honestly; backlog is policy packs / fence-lang / anti-gaming metrics — not demo features.
+Beta **tagged and released on GitHub** (`v0.2.1`). README install is Git/source-first (PyPI deferred). Backlog: fence-lang, policy packs, anti-gaming metrics — not packaging theatre.
 
 ---
 
