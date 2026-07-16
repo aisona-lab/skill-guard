@@ -60,10 +60,15 @@ LIMITATIONS.md
 
 ## Next work (do not invent new scope)
 
-1. **PyPI deferred** — tag `v0.2.1` + GitHub Release already exist; publish `aisona-skill-guard` only when a token is ready.
+Order matches README **Improve next** (from live ponytail / OOD scans):
+
+1. **SG006 context** — docs-only `npm install -g` (e.g. ponytail-help) should not WARN as hard as real install steps.
 2. **Fence language** on candidates → drop `_looks_python` / `_looks_js` in exfil.
-3. **Policy packs** (`default` / `strict`) + richer suppressions.
-4. Only later: agent-firewall (runtime), more rules with OOD coverage.
+3. Known misses: base64/exec, split secrets, non-py/js langs.
+4. Metrics: wrong-rule BLOCK + strict rule recall.
+5. OOD-unsafe suite; policy packs `default`/`strict`.
+6. **PyPI deferred** — tag `v0.2.1` exists; publish `aisona-skill-guard` when token ready.
+7. Only later: agent-firewall (runtime).
 
 ## Lab context
 

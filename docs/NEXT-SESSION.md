@@ -12,7 +12,7 @@
 
 ## One-line status
 
-Beta **tagged and released on GitHub** (`v0.2.1`). README install is Git/source-first (PyPI deferred). Backlog: fence-lang, policy packs, anti-gaming metrics — not packaging theatre.
+Beta **tagged** (`v0.2.1`). README is short/ponytail-style with **Improve next** from live scans (ponytail-help SG006, fence-lang, residuals). PyPI deferred. Product work > packaging.
 
 ---
 

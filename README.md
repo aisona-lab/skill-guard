@@ -1,160 +1,126 @@
 # skill-guard
 
-**Beta.** Static pre-install auditor for Agent Skills — not a runtime firewall and not “100% accuracy.” Read [LIMITATIONS.md](LIMITATIONS.md) first.
+**Scan an Agent Skill before it runs on your machine.**  
+Offline. Deterministic. No skill code executed. Exit codes for CI.
 
-**Audit Agent Skills before they touch your machine. Deterministic checks. Exit codes. No vibes.**
+Beta. Not a runtime firewall. Not 100% detection. Details: [LIMITATIONS.md](LIMITATIONS.md).
 
 [![CI](https://github.com/aisona-lab/skill-guard/actions/workflows/ci.yml/badge.svg)](https://github.com/aisona-lab/skill-guard/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-3.12%2B-blue)
-![License](https://img.shields.io/badge/license-MIT-green)
-![version](https://img.shields.io/badge/version-0.2.1-informational)
-![status](https://img.shields.io/badge/status-beta-yellow)
-[![GitHub release](https://img.shields.io/github/v/release/aisona-lab/skill-guard?display_name=tag)](https://github.com/aisona-lab/skill-guard/releases/tag/v0.2.1)
-
-Pre-install security linter for [Agent Skills](https://agentskills.io/specification) (`SKILL.md` packages). Scans the **whole package** (markdown + scripts) offline. Never executes skill code.
-
-What this **does not** claim: real-world 100% detection, zero false positives, full multi-language AST, or runtime tool-call safety. See [LIMITATIONS.md](LIMITATIONS.md) and honest suites in [docs/BENCHMARKS.md](docs/BENCHMARKS.md).
-
-Part of [aisona-lab](https://github.com/aisona-lab) trust tooling next to [prompt-guard](https://github.com/aisona-lab/prompt-guard), [OrcaI](https://github.com/aisona-lab/OrcaI), [lazycoder](https://github.com/aisona-lab/lazycoder).
+![version](https://img.shields.io/badge/v0.2.1-beta-yellow)
+[![release](https://img.shields.io/github/v/release/aisona-lab/skill-guard?display_name=tag)](https://github.com/aisona-lab/skill-guard/releases/tag/v0.2.1)
 
 ## Install
 
-**PyPI is not published yet** (deferred). Use GitHub release / source. The future distribution name will be **`aisona-skill-guard`** (PyPI `skill-guard` is a different, unrelated package). The CLI is always `skill-guard`.
+PyPI not published yet. CLI name is always `skill-guard` (future package name: `aisona-skill-guard` — PyPI `skill-guard` is someone else).
 
 ```bash
-# pinned release (recommended)
-uvx --from "git+https://github.com/aisona-lab/skill-guard@v0.2.1" skill-guard scan ./path/to/skill
+# one-shot
+uvx --from "git+https://github.com/aisona-lab/skill-guard@v0.2.1" skill-guard scan ./my-skill
 
-# from a clone
-uv sync
-uv run skill-guard scan ./path/to/skill
-
-# GitHub Action (works today)
-# uses: aisona-lab/skill-guard@v0.2.1
-
-# after PyPI publish (not available yet):
-# pip install aisona-skill-guard
-# uv tool install aisona-skill-guard
+# or from a clone
+uv sync && uv run skill-guard scan ./my-skill
 ```
 
-## Usage
+## Use
 
 ```bash
 skill-guard scan ./my-skill
-skill-guard scan ./skill-a ./skill-b          # batch
-skill-guard scan ./my-skill --json
-skill-guard scan ./my-skill --sarif           # one SARIF doc (merges multi-target)
-skill-guard scan ./my-skill --sarif-file out.sarif   # text + SARIF, single pass
-skill-guard scan ./my-skill --fail-on warn
-skill-guard scan ./my-skill --config .skill-guard.yml
-skill-guard scan ./my-skill --rules SG002,SG004
+skill-guard scan ./a ./b --json
+skill-guard scan ./my-skill --sarif-file out.sarif
+skill-guard scan ./my-skill --fail-on warn   # also fail on MEDIUM
 ```
 
-### Exit codes
-
-| Code | Meaning |
+| Exit | Meaning |
 |-----:|---------|
-| 0 | ALLOW (default `--fail-on block` also treats WARN as success) |
-| 1 | WARN (with `--fail-on warn`) |
+| 0 | ALLOW (default: WARN does not fail; only BLOCK does) |
+| 1 | WARN (`--fail-on warn`) |
 | 2 | BLOCK |
-| 3 | usage / missing path |
+| 3 | bad usage |
 
-### Config (`.skill-guard.yml`)
+Config (optional) `.skill-guard.yml`:
 
 ```yaml
 fail_on: block
-suppress:
-  - SG008
-  - "SG001:SKILL.md"
-rules:
-  SG009:
-    enabled: false
+suppress: [SG008]
 ```
 
-### GitHub Action
-
-Paths are **newline-separated** (not space-split), so paths with spaces work:
+CI Action:
 
 ```yaml
 - uses: aisona-lab/skill-guard@v0.2.1
   with:
     path: ./skills/my-skill
     fail-on: block
-    sarif: skill-guard.sarif
-
-# Multiple skills:
-# path: |
-#   ./skills/foo
-#   ./skills/bar with spaces
-
-# Optional: upload SARIF to GitHub code scanning
-- uses: github/codeql-action/upload-sarif@v3
-  if: always()
-  with:
-    sarif_file: skill-guard.sarif
 ```
 
-Limitations and non-claims: [`LIMITATIONS.md`](LIMITATIONS.md). Changelog: [`CHANGELOG.md`](CHANGELOG.md).  
-Next-session handoff (agents/humans): [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md).
+Paths in the Action are **newline-separated** (spaces in paths OK).
 
-## What it checks
+## What it flags
 
-| ID | Family |
-|----|--------|
-| SG001 | Spec / structure (missing required fields) |
-| SG002 | Secrets |
-| SG003 | Dangerous shell / PowerShell / decode-exec (token pipeline engine) |
-| SG004 | Exfiltration (path registry + Python/JS/PS readers) |
-| SG005 | Prompt hijack in skill body |
-| SG006 | Supply chain installs |
-| SG007 | Blast radius / HITL bypass / path traversal |
+| ID | Looks for |
+|----|-----------|
+| SG001 | Broken skill structure |
+| SG002 | Hardcoded secrets |
+| SG003 | Dangerous shell / PS |
+| SG004 | Credential / env exfil |
+| SG005 | Prompt hijack in body |
+| SG006 | Risky installs (`npm -g`, remote pip…) |
+| SG007 | Blast radius / path escape |
 | SG008 | Token bloat |
 | SG009 | Identity spoof |
-| SG010 | Enterprise policy (IMDS, CI secrets, docker.sock, cloud creds) |
+| SG010 | Enterprise (docker.sock, IMDS, cloud creds…) |
 
-## Architecture
+Never runs the skill. Text + scripts only.
 
+## Live check (real skills)
+
+```bash
+# ponytail pack — ALLOW except help (WARN: docs mention npm install -g)
+skill-guard scan ~/.claude/plugins/cache/ponytail/ponytail/*/skills/ponytail
+skill-guard scan ~/.claude/plugins/cache/ponytail/ponytail/*/skills/*
+
+# should BLOCK
+skill-guard scan dataset/fixtures/malicious/curl-pipe-shell
 ```
-path → load package (no exec)
-     → normalize (NFKC, fences, line-cont)
-     → rules (shell tokens, lang readers, patterns)
-     → config suppressions
-     → verdict → text | json | sarif
-```
 
-Design notes: [`docs/DECISIONS.md`](docs/DECISIONS.md) · P0 plan: [`docs/P0-WEEK1.md`](docs/P0-WEEK1.md)
+## Eval (do not mix numbers)
 
-## Evaluation (honest)
-
-Three suites. **Do not conflate them.** Full protocol: [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md).
-
-| Suite | Purpose | Gate |
-|-------|---------|------|
-| **core** | Hand-labeled fixtures (regression) | unsafe recall ≥ 0.95, safe FPR ≤ 0.05 |
-| **adversarial** | Attack variants (shell reorder, PS, pathlib, docker.sock, …) | attack recall ≥ 0.75 |
-| **ood** | **Real skills** from public repos (safe FPR) | false BLOCK ≤ 0.05, n ≥ 40 |
+| Suite | Measures | Gate |
+|-------|----------|------|
+| core | hand fixtures | recall ≥ 0.95, FPR ≤ 0.05 |
+| adversarial | attack variants we wrote | recall ≥ 0.75 |
+| ood | real safe skills | false BLOCK ≤ 0.05 |
 
 ```bash
 uv run python eval/selftest.py
-uv run python eval/run_eval.py --suite all --check --details
+uv run python eval/run_eval.py --suite all --check
 uv run pytest -q
 ```
 
-**Latest local snapshot (see BENCHMARKS.md for date):**
+Protocol: [docs/BENCHMARKS.md](docs/BENCHMARKS.md). Core 100% ≠ real-world accuracy.
 
-- core: unsafe **17/17**, safe FPR **0/9**
-- adversarial: **25/25** attacks, **0/5** safe controls blocked
-- **ood: 0 false BLOCKs on 73 vendored real safe skills** (WARN rate ~18%, not a hard gate)
-- residual miss (not claimed): concatenated API keys (`'sk'+'-ant-'+…`)
+## Improve next (from real scans)
 
-Core 100% is **not** “real-world accuracy.” OOD FPR is the external credibility metric.
+Ordered by usefulness, not size:
 
-## Non-goals
+1. **SG006 context** — `ponytail-help` WARNs on instructional `npm install -g` in docs. Prefer “command the agent should run” over bare mention, or a docs-tone allowlist.
+2. **Fence language** — drop `_looks_python` / `_looks_js`; use fence tags on candidates.
+3. **Known misses** — base64/exec, split secrets (`'sk'+'-ant-'`), langs without heuristics (e.g. Ruby).
+4. **Metrics honesty** — report wrong-rule BLOCK + strict rule recall (soft ∩ today).
+5. **OOD-unsafe** — wild/malware recall suite (today OOD is safe FPR only).
+6. **Policy packs** — `default` / `strict` (`fail-on warn` profile).
+7. **PyPI** — publish `aisona-skill-guard` when ready.
 
-- Runtime tool-call firewall (separate product)
-- LLM-as-judge as primary detector
-- Executing skill scripts during audit
-- 100% detection of all future evasions
+## Not this tool
+
+Runtime tool firewall · LLM-as-judge primary detector · MCP server audit · “catches every evasion”.
+
+Sibling trust tools: [prompt-guard](https://github.com/aisona-lab/prompt-guard) · [OrcaI](https://github.com/aisona-lab/OrcaI) · [lazycoder](https://github.com/aisona-lab/lazycoder).
+
+## Docs
+
+[LIMITATIONS](LIMITATIONS.md) · [CHANGELOG](CHANGELOG.md) · [DECISIONS](docs/DECISIONS.md) · [BENCHMARKS](docs/BENCHMARKS.md)
 
 ## License
 
