@@ -60,9 +60,9 @@ LIMITATIONS.md
 
 ## Next work (do not invent new scope)
 
-Order matches README **Improve next** (from live ponytail / OOD scans):
+Order matches README **Improve next**:
 
-1. **SG006 context** — docs-only `npm install -g` (e.g. ponytail-help) should not WARN as hard as real install steps.
+1. ~~SG006 context~~ **done** — global install MEDIUM only in fences/scripts.
 2. **Fence language** on candidates → drop `_looks_python` / `_looks_js` in exfil.
 3. Known misses: base64/exec, split secrets, non-py/js langs.
 4. Metrics: wrong-rule BLOCK + strict rule recall.

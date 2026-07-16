@@ -76,7 +76,7 @@ do not break across releases.
 | SG003 | Dangerous shell | high–critical |
 | SG004 | Data exfiltration | critical |
 | SG005 | Prompt injection / instruction hijack in skill body | high |
-| SG006 | Supply chain (remote code install) | high–critical |
+| SG006 | Supply chain (remote code install) | high–critical; global install **medium only** if fenced or under `scripts/` (prose tips ignored) |
 | SG007 | Blast-radius permissions | high |
 | SG008 | Token / context bloat | medium |
 | SG009 | Identity spoofing | medium–high |

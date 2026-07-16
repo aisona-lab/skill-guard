@@ -12,7 +12,7 @@
 
 ## One-line status
 
-Beta **tagged** (`v0.2.1`). README is short/ponytail-style with **Improve next** from live scans (ponytail-help SG006, fence-lang, residuals). PyPI deferred. Product work > packaging.
+Beta **tagged** (`v0.2.1`). SG006 prose filter shipped (ponytail-help ALLOW). Next product: fence-lang. PyPI deferred.
 
 ---
 

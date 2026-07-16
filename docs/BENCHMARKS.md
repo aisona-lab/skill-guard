@@ -56,7 +56,7 @@ uv run pytest -q
 |--------|-------|
 | n (safe) | 73 |
 | false BLOCK (FPR) | **0/73 = 0.00** |
-| WARN rate (informational) | ~13/73 ≈ 0.18 |
+| WARN rate (informational) | ~11/73 ≈ 0.15 (was ~0.18; SG006 prose filter) |
 
 **Sources (partial vendored packages):** obra/superpowers, DietrichGebert/ponytail, vercel-labs/agent-skills, anthropics/skills, ComposioHQ/awesome-claude-skills (non-composio top-level). See `dataset/ood/SOURCES.md`.
 
