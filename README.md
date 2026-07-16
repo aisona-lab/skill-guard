@@ -106,7 +106,8 @@ Protocol: [docs/BENCHMARKS.md](docs/BENCHMARKS.md). Core 100% ≠ real-world acc
 
 Done:
 - **SG006 context** — MEDIUM only for fenced/scripts global installs
-- **Fence language** — `CodeCandidate.lang` from fence tags; no `_looks_python` / `_looks_js`
+- **Fence language** — `CodeCandidate.lang` from fence tags; no `_looks_*`
+- **Live-scan FPs** — edu hijack quotes, CI `${{ secrets }}` docs, IMDS training prose, `process.env` CORS
 
 Next:
 

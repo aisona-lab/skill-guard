@@ -39,10 +39,18 @@ _CLASSIC: list[tuple[Severity, re.Pattern[str], str]] = [
     ),
     (
         Severity.HIGH,
+        # Require real network APIs (not bare "http" in CORS defaults).
+        # Match either order: process.env … fetch(  OR  fetch( … process.env
         re.compile(
-            r"(?i)(env\s*\|\s*curl|printenv\s*\|\s*curl|"
-            r"process\.env[^\n]{0,40}(fetch|axios|http)|"
-            r"os\.environ[^\n]{0,40}(requests|httpx|urlopen))"
+            r"(?i)("
+            r"env\s*\|\s*curl|printenv\s*\|\s*curl|"
+            r"process\.env[^\n]{0,100}(fetch\s*\(|axios\.|http\.request|https\.request|"
+            r"XMLHttpRequest|node-fetch|got\()|"
+            r"(fetch\s*\(|axios\.|http\.request|https\.request|XMLHttpRequest)"
+            r"[^\n]{0,120}process\.env|"
+            r"os\.environ[^\n]{0,80}(requests\.(get|post|put)|httpx\.(get|post)|urlopen\()|"
+            r"(requests\.(get|post|put)|httpx\.(get|post)|urlopen\()[^\n]{0,80}os\.environ"
+            r")"
         ),
         "Environment dump piped or sent over network",
     ),

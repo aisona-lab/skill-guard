@@ -159,7 +159,10 @@ def read_then_network_risk(text: str, window: int = 400) -> list[str]:
 
     Bare co-occurrence of ``.env`` and ``curl`` in deploy docs is not enough;
     require upload/post/read-of-env signals to avoid FPs on legitimate tooling.
+    Cloud metadata in educational/security-training prose is skipped.
     """
+    from skill_guard.context_tone import educational_context
+
     risks: list[str] = []
     for pp, m in find_sensitive_paths(text):
         start = max(0, m.start() - window)
@@ -169,6 +172,11 @@ def read_then_network_risk(text: str, window: int = 400) -> list[str]:
             # env files are common in deploy skills; only flag strong exfil shape
             if _EXFIL_CONTEXT.search(chunk) and has_network_sink(chunk):
                 risks.append(pp.id)
+            continue
+        # Wider window: SSRF training often names IMDS far from "attacker" prose.
+        if pp.id == "imds" and educational_context(
+            text, m.start(), m.end(), radius=400
+        ):
             continue
         if has_network_sink(chunk) and (
             has_read_hint(chunk) or pp.severity is Severity.CRITICAL

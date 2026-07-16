@@ -160,3 +160,5 @@ Post-review structural cleanup (behavior preserved; gates still green):
 | PowerShell only via FileKind / markdown fence heuristics | No dual ownership shell+exfil |
 | Deleted exfil Path.home fallback | Owned by `lang_python` |
 | `CodeCandidate.lang` from fence tags | No `_looks_python` / `_looks_js`; unlabeled fences skip lang analyzers |
+| `context_tone` educational windows | Skip/demote FPs when skills *document* attacks (SG005/IMDS) |
+| `${{ secrets.* }}` severity | CRITICAL only near curl/fetch/exfil; else MEDIUM (CI teaching skills) |

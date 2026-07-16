@@ -2,12 +2,15 @@
 
 A skill can smuggle overrides that reprogram the host agent once loaded.
 These patterns target that threat, not general user-prompt scanning.
+
+Educational / anti-example prose (security skills documenting attacks) is skipped.
 """
 
 from __future__ import annotations
 
 import re
 
+from skill_guard.context_tone import educational_context
 from skill_guard.models import (
     FileKind,
     Finding,
@@ -57,7 +60,6 @@ _PATTERNS: list[tuple[Severity, re.Pattern[str], str]] = [
 
 def check(pkg: PackageContext) -> list[Finding]:
     findings: list[Finding] = []
-    # Instructional surfaces only: markdown (and skill body).
     targets = [
         f
         for f in pkg.files
@@ -67,6 +69,8 @@ def check(pkg: PackageContext) -> list[Finding]:
         text = f.normalized
         for severity, pattern, title in _PATTERNS:
             for m in pattern.finditer(text):
+                if educational_context(text, m.start(), m.end()):
+                    continue
                 findings.append(
                     make_finding(
                         RuleId.SG005,

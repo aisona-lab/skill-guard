@@ -64,7 +64,8 @@ Order matches README **Improve next**:
 
 1. ~~SG006 context~~ **done** — global install MEDIUM only in fences/scripts.
 2. ~~Fence language~~ **done** — `CodeCandidate.lang` from fence tags; no `_looks_*`.
-3. Known misses: base64/exec, split secrets, non-py/js langs.
+3. ~~Live-scan FPs~~ **done** — edu SG005, CI secrets severity, IMDS training, process.env CORS.
+4. Known misses: base64/exec, split secrets, non-py/js langs.
 4. Metrics: wrong-rule BLOCK + strict rule recall.
 5. OOD-unsafe suite; policy packs `default`/`strict`.
 6. **PyPI deferred** — tag `v0.2.1` exists; publish `aisona-skill-guard` when token ready.

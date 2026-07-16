@@ -15,6 +15,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Fence language on candidates:** `CodeCandidate {text, lang}` from markdown fence tags (` ```python `, ` ```js `, ` ```bash `, …). SG004 python/js analyzers use tags + `FileKind` only — removed `_looks_python` / `_looks_js` sniffing.
 
+### Fixed (live trending-skill FPs)
+
+- **SG005:** skip educational/anti-example hijack quotes (`context_tone.educational_context`)
+- **SG010:** `${{ secrets.* }}` is CRITICAL only near exfil sinks; bare CI docs → MEDIUM
+- **SG010/SG004:** IMDS / metadata in security-training prose skipped
+- **SG004:** `process.env` env-dump needs real sinks (`fetch(`, `axios.`, …) not bare `http` in CORS strings
+
 ## [0.2.1] — 2026-07-15
 
 ### Added

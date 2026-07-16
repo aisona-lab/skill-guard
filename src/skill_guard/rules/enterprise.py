@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 
+from skill_guard.context_tone import educational_context, secret_exfil_context
 from skill_guard.models import Finding, PackageContext, RuleId, Severity, make_finding
 from skill_guard.paths import CLOUD_METADATA, find_sensitive_paths
 
@@ -45,17 +46,10 @@ _PERMISSION_PATTERNS: list[tuple[Severity, re.Pattern[str], str]] = [
     ),
 ]
 
+_SECRETS_EXPANSION = re.compile(r"(?i)\$\{\{\s*secrets\.[A-Za-z0-9_]+\s*\}\}")
+_AWS_SECRET_ASSIGN = re.compile(r"(?i)AWS_SECRET_ACCESS_KEY\s*=")
+
 _POLICY_PATTERNS: list[tuple[Severity, re.Pattern[str], str]] = [
-    (
-        # Bare docs mentions of GITHUB_TOKEN are common in legitimate skills.
-        # Critical only for Actions secret expansion or explicit AWS secret key name
-        # in assignment-like contexts handled elsewhere; keep expansion critical.
-        Severity.CRITICAL,
-        re.compile(
-            r"(?i)(\$\{\{\s*secrets\.[A-Za-z0-9_]+\s*\}\}|AWS_SECRET_ACCESS_KEY\s*=)"
-        ),
-        "CI secret expansion or AWS secret key assignment",
-    ),
     (
         Severity.MEDIUM,
         re.compile(
@@ -95,11 +89,15 @@ def check_permissions(ctx: PackageContext) -> list[Finding]:
 
 def check_policy(ctx: PackageContext) -> list[Finding]:
     findings = _scan(ctx, RuleId.SG010, _POLICY_PATTERNS)
+    findings.extend(_secret_expansion_findings(ctx))
     meta_ids = {p.id for p in CLOUD_METADATA}
     for f in ctx.files:
         norm = f.normalized
         for pp, m in find_sensitive_paths(norm):
             if pp.id in meta_ids or pp.id == "docker_sock":
+                # Security-training skills document IMDS attacks; skip edu tone.
+                if educational_context(norm, m.start(), m.end(), radius=400):
+                    continue
                 findings.append(
                     make_finding(
                         RuleId.SG010,
@@ -116,6 +114,8 @@ def check_policy(ctx: PackageContext) -> list[Finding]:
                 r"(?i)(cat|type|Get-Content|open\(|read_text|readFile)",
                 norm[max(0, m.start() - 80) : m.end() + 80],
             ):
+                if educational_context(norm, m.start(), m.end()):
+                    continue
                 findings.append(
                     make_finding(
                         RuleId.SG010,
@@ -127,6 +127,51 @@ def check_policy(ctx: PackageContext) -> list[Finding]:
                         remediation="Do not read cloud credential files from skills.",
                     )
                 )
+    return findings
+
+
+def _secret_expansion_findings(ctx: PackageContext) -> list[Finding]:
+    """``${{ secrets.* }}``: CRITICAL only near exfil; else MEDIUM (CI docs)."""
+    findings: list[Finding] = []
+    for f in ctx.files:
+        text = f.normalized
+        for m in _SECRETS_EXPANSION.finditer(text):
+            sev = (
+                Severity.CRITICAL
+                if secret_exfil_context(text, m.start(), m.end())
+                else Severity.MEDIUM
+            )
+            findings.append(
+                make_finding(
+                    RuleId.SG010,
+                    sev,
+                    title="CI secret expansion or AWS secret key assignment",
+                    path=f.relpath,
+                    message=f"Enterprise policy concern in `{f.relpath}`.",
+                    evidence=m.group(0),
+                    remediation=(
+                        "Remove or tightly scope privileged operations; "
+                        "document business need."
+                    ),
+                    line=text.count("\n", 0, m.start()) + 1,
+                )
+            )
+        for m in _AWS_SECRET_ASSIGN.finditer(text):
+            findings.append(
+                make_finding(
+                    RuleId.SG010,
+                    Severity.CRITICAL,
+                    title="CI secret expansion or AWS secret key assignment",
+                    path=f.relpath,
+                    message=f"Enterprise policy concern in `{f.relpath}`.",
+                    evidence=m.group(0),
+                    remediation=(
+                        "Remove or tightly scope privileged operations; "
+                        "document business need."
+                    ),
+                    line=text.count("\n", 0, m.start()) + 1,
+                )
+            )
     return findings
 
 
