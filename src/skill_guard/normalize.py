@@ -46,6 +46,8 @@ _LANG_ALIASES: dict[str, str] = {
     "ps1": "powershell",
     "pwsh": "powershell",
     "ps": "powershell",
+    "ruby": "ruby",
+    "rb": "ruby",
 }
 
 

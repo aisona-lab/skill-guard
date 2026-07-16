@@ -38,6 +38,11 @@ _URLLIB_POST = re.compile(
 _PASSWD_OPEN = re.compile(
     r"(?i)open\(\s*['\"]/(etc/passwd|etc/shadow|etc/sudoers)"
 )
+# Known residual: exec/eval of base64-decoded payloads
+_EXEC_B64 = re.compile(
+    r"(?i)\b(exec|eval)\s*\(\s*(base64\.b64decode|binascii\.a2b_base64|"
+    r"codecs\.decode\([^,]+,\s*['\"]base64)"
+)
 
 
 def analyze_python(content: str, relpath: str) -> list[Finding]:
@@ -98,6 +103,19 @@ def analyze_python(content: str, relpath: str) -> list[Finding]:
                 "Python open of system password file",
                 relpath,
                 "/etc/passwd|/etc/shadow",
+            )
+        )
+
+    if _EXEC_B64.search(content):
+        findings.append(
+            make_finding(
+                RuleId.SG003,
+                Severity.HIGH,
+                title="Python exec/eval of base64-decoded payload",
+                path=relpath,
+                message=f"Obfuscated code execution in `{relpath}`.",
+                evidence="exec/eval(base64…)",
+                remediation="Do not execute decoded payloads from skills.",
             )
         )
 

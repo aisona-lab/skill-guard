@@ -11,17 +11,23 @@ Last local run: **2026-07-15** · skill-guard **0.2.1+** (feat/ood-corpus)
 | **core** | Hand-written fixtures in-repo; regression guard | External accuracy claim |
 | **adversarial** | Attack variants written to stress detectors | Skills from the wild |
 | **ood** | Vendored real skills from public repos | A malware corpus |
+| **ood-unsafe** | Held-out attack packs (evasions once residual) | Real-world wild malware dump |
 
 ## Gates (CI)
 
 | Suite | Metric | Threshold |
 |-------|--------|-----------|
 | core | unsafe BLOCK recall | ≥ 0.95 |
+| core | soft rule_recall (any expected rule) | ≥ 0.90 |
 | core | safe false-BLOCK rate | ≤ 0.05 |
 | adversarial | attack BLOCK recall | ≥ 0.75 |
 | adversarial | safe control FPR | ≤ 0.05 |
 | **ood** | **safe false-BLOCK rate** | **≤ 0.05** |
 | ood | minimum safe sample size | ≥ 40 |
+| **ood-unsafe** | attack BLOCK recall | ≥ 0.70 |
+| ood-unsafe | minimum n | ≥ 5 |
+
+Honesty metrics (reported, not all hard gates): **strict_rule_recall** (expected ⊆ fired), **wrong_rule_block**.
 
 WARN on safe OOD skills is **reported but not a hard fail** (noise budget for bloat/global install tips).
 

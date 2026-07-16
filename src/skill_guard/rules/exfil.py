@@ -20,6 +20,13 @@ from skill_guard.models import (
 )
 from skill_guard.paths import read_then_network_risk
 
+# Light multi-lang patterns for fences without full analyzers (Ruby, etc.).
+_RUBY_EXFIL = re.compile(
+    r"(?is)Net::HTTP[^\n]{0,120}(File\.read|IO\.read|File\.open)"
+    r"|File\.read[^\n]{0,80}(expand_path\(['\"]~|\.ssh|id_rsa)"
+    r".{0,200}Net::HTTP"
+)
+
 _CLASSIC: list[tuple[Severity, re.Pattern[str], str]] = [
     (
         Severity.CRITICAL,
@@ -118,6 +125,20 @@ def check(ctx: PackageContext) -> list[Finding]:
                     findings.extend(analyze_python(blob, f.relpath))
                 elif cand.lang == "javascript":
                     findings.extend(analyze_js(blob, f.relpath))
+            # Ruby (and untagged) light patterns — no full Ruby analyzer
+            if cand.lang in (None, "ruby") or "Net::HTTP" in blob:
+                if _RUBY_EXFIL.search(blob):
+                    findings.append(
+                        make_finding(
+                            RuleId.SG004,
+                            Severity.CRITICAL,
+                            title="Ruby Net::HTTP credential path read",
+                            path=f.relpath,
+                            message=f"Possible Ruby exfil pattern in `{f.relpath}`.",
+                            evidence="Net::HTTP + File.read/.ssh",
+                            remediation="Do not upload local credential files.",
+                        )
+                    )
 
         if f.kind is FileKind.PYTHON:
             findings.extend(analyze_python(f.normalized, f.relpath))

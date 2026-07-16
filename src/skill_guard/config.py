@@ -1,4 +1,4 @@
-"""Optional `.skill-guard.yml` configuration."""
+"""Optional `.skill-guard.yml` configuration + built-in policy packs."""
 
 from __future__ import annotations
 
@@ -11,6 +11,17 @@ from pydantic import BaseModel, Field, field_validator
 from skill_guard.models import Finding, Severity
 
 FailOn = Literal["never", "warn", "block"]
+PackName = Literal["default", "strict"]
+
+# Built-in packs (ponytail: no separate files until we need more knobs).
+POLICY_PACKS: dict[str, dict[str, Any]] = {
+    "default": {
+        "fail_on": "block",  # WARN does not fail CI
+    },
+    "strict": {
+        "fail_on": "warn",  # MEDIUM+ fails CI
+    },
+}
 
 
 class RuleConfig(BaseModel):
@@ -36,6 +47,7 @@ class RuleConfig(BaseModel):
 class SkillGuardConfig(BaseModel):
     """User/project configuration for scan behavior."""
 
+    pack: str | None = None
     fail_on: FailOn = "block"
     rules: dict[str, RuleConfig] = Field(default_factory=dict)
     suppress: list[str] = Field(
@@ -52,22 +64,51 @@ class SkillGuardConfig(BaseModel):
         return s
 
 
-def load_config(path: str | Path | None = None) -> SkillGuardConfig:
-    """Load config from path, or walk parents for `.skill-guard.yml`."""
+def load_config(
+    path: str | Path | None = None,
+    *,
+    pack: str | None = None,
+) -> SkillGuardConfig:
+    """Load config from path / parents, then apply optional pack + pack field."""
+    base = SkillGuardConfig()
     if path is not None:
         p = Path(path)
-        if not p.is_file():
-            return SkillGuardConfig()
-        return _parse(p.read_text(encoding="utf-8"))
+        if p.is_file():
+            base = _parse(p.read_text(encoding="utf-8"))
+    else:
+        cwd = Path.cwd()
+        for folder in [cwd, *cwd.parents]:
+            candidate = folder / ".skill-guard.yml"
+            if candidate.is_file():
+                base = _parse(candidate.read_text(encoding="utf-8"))
+                break
+            if (folder / ".git").exists():
+                break
 
-    cwd = Path.cwd()
-    for folder in [cwd, *cwd.parents]:
-        candidate = folder / ".skill-guard.yml"
-        if candidate.is_file():
-            return _parse(candidate.read_text(encoding="utf-8"))
-        if (folder / ".git").exists():
-            break
-    return SkillGuardConfig()
+    chosen = pack or base.pack
+    if chosen:
+        base = apply_pack(base, chosen)
+    return base
+
+
+def apply_pack(cfg: SkillGuardConfig, pack: str) -> SkillGuardConfig:
+    """Overlay a built-in policy pack. Explicit fail_on in file wins only if pack not forced.
+
+    Pack applies fail_on defaults; YAML keys already on cfg that match pack are
+    overwritten by pack for fail_on (pack is the profile selector).
+    """
+    name = pack.strip().lower()
+    if name not in POLICY_PACKS:
+        raise ValueError(
+            f"unknown pack {pack!r}; expected one of {', '.join(sorted(POLICY_PACKS))}"
+        )
+    overlay = POLICY_PACKS[name]
+    return cfg.model_copy(
+        update={
+            "pack": name,
+            "fail_on": overlay.get("fail_on", cfg.fail_on),
+        }
+    )
 
 
 def _parse(raw: str) -> SkillGuardConfig:
@@ -83,11 +124,27 @@ def _parse(raw: str) -> SkillGuardConfig:
                 rules[key] = RuleConfig(enabled=v)
             elif isinstance(v, dict):
                 rules[key] = RuleConfig.model_validate(v)
-    return SkillGuardConfig(
+    pack = data.get("pack")
+    cfg = SkillGuardConfig(
+        pack=str(pack) if pack else None,
         fail_on=data.get("fail_on", "block"),
         rules=rules,
         suppress=[str(x) for x in (data.get("suppress") or [])],
     )
+    # If YAML sets pack but also fail_on, keep explicit fail_on after pack default:
+    if pack:
+        packed = apply_pack(SkillGuardConfig(pack=str(pack)), str(pack))
+        # file fail_on wins when user set both pack and fail_on
+        if "fail_on" in data:
+            return packed.model_copy(
+                update={
+                    "fail_on": cfg.fail_on,
+                    "rules": rules,
+                    "suppress": cfg.suppress,
+                }
+            )
+        return packed.model_copy(update={"rules": rules, "suppress": cfg.suppress})
+    return cfg
 
 
 def apply_config_to_findings(

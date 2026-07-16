@@ -30,6 +30,8 @@ jobs:
         run: uv run python eval/run_eval.py --suite adversarial --check --details
       - name: OOD eval gates (real-world safe skills FPR)
         run: uv run python eval/run_eval.py --suite ood --check --details
+      - name: OOD-unsafe attack recall
+        run: uv run python eval/run_eval.py --suite ood-unsafe --check --details
 
   package:
     runs-on: ubuntu-latest

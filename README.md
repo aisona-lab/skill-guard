@@ -29,6 +29,7 @@ skill-guard scan ./my-skill
 skill-guard scan ./a ./b --json
 skill-guard scan ./my-skill --sarif-file out.sarif
 skill-guard scan ./my-skill --fail-on warn   # also fail on MEDIUM
+skill-guard scan ./my-skill --pack strict    # same as fail-on warn
 ```
 
 | Exit | Meaning |
@@ -41,7 +42,8 @@ skill-guard scan ./my-skill --fail-on warn   # also fail on MEDIUM
 Config (optional) `.skill-guard.yml`:
 
 ```yaml
-fail_on: block
+pack: default   # or strict
+fail_on: block  # overrides pack if set
 suppress: [SG008]
 ```
 
@@ -93,6 +95,9 @@ skill-guard scan dataset/fixtures/malicious/curl-pipe-shell
 | core | hand fixtures | recall ≥ 0.95, FPR ≤ 0.05 |
 | adversarial | attack variants we wrote | recall ≥ 0.75 |
 | ood | real safe skills | false BLOCK ≤ 0.05 |
+| ood-unsafe | held-out attacks | recall ≥ 0.70, n ≥ 5 |
+
+Reports **soft rule_recall** (any expected rule), **strict_rule_recall** (all expected), and **wrong_rule_block** (BLOCK without expected rule).
 
 ```bash
 uv run python eval/selftest.py
@@ -104,18 +109,12 @@ Protocol: [docs/BENCHMARKS.md](docs/BENCHMARKS.md). Core 100% ≠ real-world acc
 
 ## Improve next
 
-Done:
-- **SG006 context** — MEDIUM only for fenced/scripts global installs
-- **Fence language** — `CodeCandidate.lang` from fence tags; no `_looks_*`
-- **Live-scan FPs** — edu hijack quotes, CI `${{ secrets }}` docs, IMDS training prose, `process.env` CORS
+Done this arc: SG006 context · fence-lang · live FPs · known misses · metrics honesty · ood-unsafe · policy packs.
 
-Next:
+Still open:
 
-1. **Known misses** — base64/exec, split secrets (`'sk'+'-ant-'`), langs without heuristics (e.g. Ruby).
-2. **Metrics honesty** — report wrong-rule BLOCK + strict rule recall (soft ∩ today).
-3. **OOD-unsafe** — wild/malware recall suite (today OOD is safe FPR only).
-4. **Policy packs** — `default` / `strict` (`fail-on warn` profile).
-5. **PyPI** — publish `aisona-skill-guard` when ready.
+1. **PyPI** — publish `aisona-skill-guard` when ready  
+2. Richer suppressions / more langs as real FPs appear  
 
 ## Not this tool
 

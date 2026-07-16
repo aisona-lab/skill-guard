@@ -22,6 +22,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **SG010/SG004:** IMDS / metadata in security-training prose skipped
 - **SG004:** `process.env` env-dump needs real sinks (`fetch(`, `axios.`, …) not bare `http` in CORS strings
 
+### Added
+
+- **Eval honesty:** `strict_rule_recall` + `wrong_rule_block` in `eval/run_eval.py`
+- **OOD-unsafe suite:** 8 held-out attack packs + CI gate (recall ≥ 0.70)
+- **Policy packs:** `--pack default|strict` and `pack:` in `.skill-guard.yml`
+- **Known-miss detectors:** split secrets, `exec(base64…)`, base64→shell/IEX, light Ruby Net::HTTP+.ssh
+
 ## [0.2.1] — 2026-07-15
 
 ### Added

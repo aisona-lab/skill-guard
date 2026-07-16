@@ -12,7 +12,7 @@
 
 ## One-line status
 
-Beta **tagged** (`v0.2.1`). SG006 prose filter + fence-lang shipped. Next: known misses / metrics honesty. PyPI deferred.
+Beta **tagged** (`v0.2.1`). Full improve-next arc shipped except PyPI. Suites: core/adv/ood/ood-unsafe. Packs: default|strict.
 
 ---
 

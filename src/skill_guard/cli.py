@@ -62,6 +62,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Override config fail-on (default: config or block)",
     )
     scan.add_argument(
+        "--pack",
+        choices=["default", "strict"],
+        default=None,
+        help="Policy pack: default (fail on BLOCK) or strict (fail on WARN+)",
+    )
+    scan.add_argument(
         "--config",
         type=str,
         default=None,
@@ -76,7 +82,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd != "scan":
         return 3
 
-    cfg = load_config(args.config)
+    cfg = load_config(args.config, pack=args.pack)
     if args.fail_on:
         cfg = cfg.model_copy(update={"fail_on": args.fail_on})
 

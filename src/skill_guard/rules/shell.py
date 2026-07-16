@@ -295,6 +295,19 @@ def _w_var_pipe_shell(text: str) -> str | None:
     return m.group(0) if m else None
 
 
+def _w_b64_decode_exec(text: str) -> str | None:
+    """base64 -d | sh  or  $(echo … | base64 -d) as command substitution."""
+    m = re.search(
+        r"(?i)("
+        r"base64\s+(?:-d|--decode|-[dD])[^\n]{0,40}\|\s*(?:ba)?sh\b"
+        r"|\$\(\s*echo\s+[^\n]{0,80}\|\s*base64\s+(?:-d|--decode)"
+        r"|FromBase64String[^\n]{0,80}(?:IEX|Invoke-Expression)"
+        r")",
+        text,
+    )
+    return m.group(0)[:120] if m else None
+
+
 _WHOLE_RULES: tuple[_WholeRule, ...] = (
     _WholeRule(
         Severity.HIGH,
@@ -325,6 +338,12 @@ _WHOLE_RULES: tuple[_WholeRule, ...] = (
         "Pipeline into shell variable (evasion)",
         _w_var_pipe_shell,
         "Do not pipe remote content into a shell variable.",
+    ),
+    _WholeRule(
+        Severity.HIGH,
+        "Base64 decode into shell / IEX",
+        _w_b64_decode_exec,
+        "Do not decode-and-execute payloads in skills.",
     ),
 )
 

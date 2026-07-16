@@ -65,6 +65,17 @@ _PATTERNS: list[tuple[str, Severity, re.Pattern[str], str]] = [
     ),
 ]
 
+# Obfuscated provider prefixes built via string concat (common residual evasion).
+# High-precision: requires sk + ant-style pieces, not arbitrary string math.
+_SPLIT_SECRET = re.compile(
+    r"""(?ix)
+    (['"]sk['"]\s*\+\s*['"]-?ant-?['"])          # "sk"+"-ant-"  or "sk"+"ant"
+    |(['"]sk-?['"]\s*\+\s*['"]ant-['"])
+    |(['"]sk['"]\s*\+\s*['"]-ant-api)            # "sk"+"-ant-api…
+    |(['"]ghp_['"]\s*\+\s*['"][A-Za-z0-9]{4,})  # split GitHub PAT
+    """
+)
+
 # Placeholders that look like secrets but are examples — suppress FP.
 _PLACEHOLDER = re.compile(
     r"(?i)(your[_-]?api[_-]?key|xxx+|placeholder|example|changeme|insert[_-]?|<.*>|\$\{|process\.env|os\.environ|getenv)"
@@ -97,6 +108,19 @@ def check(pkg: PackageContext) -> list[Finding]:
                         remediation="Remove secrets; load from environment or a secret manager.",
                     )
                 )
+        for m in _SPLIT_SECRET.finditer(f.content):
+            findings.append(
+                make_finding(
+                    RuleId.SG002,
+                    Severity.HIGH,
+                    title="Concatenated / split secret token construction",
+                    path=f.relpath,
+                    message=f"Possible obfuscated secret assembly in `{f.relpath}`.",
+                    line=_line_of(f.content, m.start()),
+                    evidence=m.group(0)[:40],
+                    remediation="Do not assemble API keys via string concatenation in skills.",
+                )
+            )
     return findings
 
 
