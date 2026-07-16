@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **SG006 global install context:** `npm install -g` / `pip install --user` / `cargo install` are MEDIUM only inside fenced code or `scripts/` (and shell/source files). Prose tips (e.g. ponytail-help “update Claude”) no longer WARN. Remote URL installs stay CRITICAL/HIGH.
 
+### Changed
+
+- **Fence language on candidates:** `CodeCandidate {text, lang}` from markdown fence tags (` ```python `, ` ```js `, ` ```bash `, …). SG004 python/js analyzers use tags + `FileKind` only — removed `_looks_python` / `_looks_js` sniffing.
+
 ## [0.2.1] — 2026-07-15
 
 ### Added

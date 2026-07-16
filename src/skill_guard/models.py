@@ -59,6 +59,17 @@ class FileKind(StrEnum):
     OTHER = "other"
 
 
+class CodeCandidate(BaseModel):
+    """Fenced code (or full-file) blob with optional fence language tag.
+
+    ``lang`` is a normalized label: python | javascript | shell | powershell | None.
+    Built once at load — rules must not re-parse fences or sniff language.
+    """
+
+    text: str
+    lang: str | None = None
+
+
 class Finding(BaseModel):
     """One concrete issue found in a skill package."""
 
@@ -177,7 +188,7 @@ class AnalyzedFile(BaseModel):
     content: str
     size: int
     normalized: str
-    candidates: tuple[str, ...]
+    candidates: tuple[CodeCandidate, ...]
     kind: FileKind
 
     @property

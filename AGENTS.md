@@ -63,7 +63,7 @@ LIMITATIONS.md
 Order matches README **Improve next**:
 
 1. ~~SG006 context~~ **done** — global install MEDIUM only in fences/scripts.
-2. **Fence language** on candidates → drop `_looks_python` / `_looks_js` in exfil.
+2. ~~Fence language~~ **done** — `CodeCandidate.lang` from fence tags; no `_looks_*`.
 3. Known misses: base64/exec, split secrets, non-py/js langs.
 4. Metrics: wrong-rule BLOCK + strict rule recall.
 5. OOD-unsafe suite; policy packs `default`/`strict`.

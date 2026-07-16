@@ -15,4 +15,7 @@ def test_line_continuation():
 def test_fence_extract():
     raw = "see\n```bash\ncurl u | zsh\n```\n"
     blocks = extract_code_candidates(raw)
-    assert any("curl" in b and "zsh" in b for b in blocks)
+    texts = [c.text for c in blocks]
+    assert any("curl" in b and "zsh" in b for b in texts)
+    bash = next(c for c in blocks if c.lang == "shell")
+    assert "curl" in bash.text

@@ -329,25 +329,33 @@ _WHOLE_RULES: tuple[_WholeRule, ...] = (
 )
 
 
+_PS_MARKERS = re.compile(
+    r"(?i)\b(IEX|Invoke-Expression|Net\.WebClient|Remove-Item)\b"
+)
+
+
 def check(ctx: PackageContext) -> list[Finding]:
     findings: list[Finding] = []
     for f in ctx.files:
-        for blob in f.candidates:
-            for stages in split_pipelines(blob):
-                for rule in _PIPELINE_RULES:
-                    evidence = rule.match(stages)
-                    if evidence:
-                        findings.append(
-                            make_finding(
-                                RuleId.SG003,
-                                rule.severity,
-                                title=rule.title,
-                                path=f.relpath,
-                                message=f"Dangerous shell pattern in `{f.relpath}`.",
-                                evidence=evidence,
-                                remediation=rule.remediation,
+        for cand in f.candidates:
+            blob = cand.text
+            # Shell pipelines: tagged shell fences + untagged/full (legacy body).
+            if cand.lang in (None, "shell", "powershell"):
+                for stages in split_pipelines(blob):
+                    for rule in _PIPELINE_RULES:
+                        evidence = rule.match(stages)
+                        if evidence:
+                            findings.append(
+                                make_finding(
+                                    RuleId.SG003,
+                                    rule.severity,
+                                    title=rule.title,
+                                    path=f.relpath,
+                                    message=f"Dangerous shell pattern in `{f.relpath}`.",
+                                    evidence=evidence,
+                                    remediation=rule.remediation,
+                                )
                             )
-                        )
         norm = f.normalized
         for rule in _WHOLE_RULES:
             evidence = rule.match(norm)
@@ -366,8 +374,10 @@ def check(ctx: PackageContext) -> list[Finding]:
         if f.kind is FileKind.POWERSHELL:
             findings.extend(analyze_powershell(f.normalized, f.relpath))
         elif f.kind is FileKind.MARKDOWN:
-            # PS cradles often appear only inside fenced blocks of SKILL.md
-            for blob in f.candidates:
-                if re.search(r"(?i)\b(IEX|Invoke-Expression|Net\.WebClient|Remove-Item)\b", blob):
-                    findings.extend(analyze_powershell(blob, f.relpath))
+            for cand in f.candidates:
+                # Prefer fence lang; untagged fences with PS markers still analyzed.
+                if cand.lang == "powershell" or (
+                    cand.lang is None and _PS_MARKERS.search(cand.text)
+                ):
+                    findings.extend(analyze_powershell(cand.text, f.relpath))
     return findings

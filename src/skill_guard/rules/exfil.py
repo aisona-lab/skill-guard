@@ -1,7 +1,7 @@
 """SG004 — data exfiltration via path registry + language readers + prose patterns.
 
-Language analyzers run only by FileKind (and fence candidates for markdown).
-No prose sniffing; no PowerShell ownership here (SG003 owns PS).
+Language analyzers: FileKind for native sources; fence ``lang`` tags for markdown.
+No prose sniffing; no ``_looks_python`` / ``_looks_js``.
 """
 
 from __future__ import annotations
@@ -73,7 +73,6 @@ _CLASSIC: list[tuple[Severity, re.Pattern[str], str]] = [
 def check(ctx: PackageContext) -> list[Finding]:
     findings: list[Finding] = []
     for f in ctx.files:
-        # Prose / classic patterns on normalized full text
         for severity, pattern, title in _CLASSIC:
             for m in pattern.finditer(f.normalized):
                 findings.append(
@@ -89,7 +88,8 @@ def check(ctx: PackageContext) -> list[Finding]:
                     )
                 )
 
-        for blob in f.candidates:
+        for cand in f.candidates:
+            blob = cand.text
             for pid in read_then_network_risk(blob):
                 findings.append(
                     make_finding(
@@ -104,39 +104,16 @@ def check(ctx: PackageContext) -> list[Finding]:
                         remediation="Do not combine credential path access with network calls.",
                     )
                 )
+            # Markdown: only tagged fences; native sources use FileKind below.
+            if f.kind is FileKind.MARKDOWN:
+                if cand.lang == "python":
+                    findings.extend(analyze_python(blob, f.relpath))
+                elif cand.lang == "javascript":
+                    findings.extend(analyze_js(blob, f.relpath))
 
-            if f.kind is FileKind.PYTHON or (
-                f.kind is FileKind.MARKDOWN and _looks_python(blob)
-            ):
-                findings.extend(analyze_python(blob, f.relpath))
-            if f.kind is FileKind.JAVASCRIPT or (
-                f.kind is FileKind.MARKDOWN and _looks_js(blob)
-            ):
-                findings.extend(analyze_js(blob, f.relpath))
-            # scripts/*.py etc. already FileKind.PYTHON
-
-        # Native source files always analyzed even if candidates empty of fences
-        if f.kind is FileKind.PYTHON and f.content not in f.candidates:
+        if f.kind is FileKind.PYTHON:
             findings.extend(analyze_python(f.normalized, f.relpath))
-        if f.kind is FileKind.JAVASCRIPT and f.content not in f.candidates:
+        elif f.kind is FileKind.JAVASCRIPT:
             findings.extend(analyze_js(f.normalized, f.relpath))
 
     return findings
-
-
-def _looks_python(blob: str) -> bool:
-    """Fence-body heuristic: only when fence content is clearly Python syntax."""
-    return bool(
-        re.search(r"(?m)^\s*(import |from \w+ import |def |class )", blob)
-        or "Path.home()" in blob
-        or "urllib" in blob
-        or "requests." in blob
-    )
-
-
-def _looks_js(blob: str) -> bool:
-    return bool(
-        re.search(r"(?m)^\s*(const |let |var |require\(|import )", blob)
-        or "readFileSync" in blob
-        or "child_process" in blob
-    )

@@ -159,3 +159,4 @@ Post-review structural cleanup (behavior preserved; gates still green):
 | Config severity validation | No silent `except Exception` |
 | PowerShell only via FileKind / markdown fence heuristics | No dual ownership shell+exfil |
 | Deleted exfil Path.home fallback | Owned by `lang_python` |
+| `CodeCandidate.lang` from fence tags | No `_looks_python` / `_looks_js`; unlabeled fences skip lang analyzers |

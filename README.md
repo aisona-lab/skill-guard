@@ -104,16 +104,17 @@ Protocol: [docs/BENCHMARKS.md](docs/BENCHMARKS.md). Core 100% ≠ real-world acc
 
 ## Improve next
 
-Done: **SG006 context** — MEDIUM only for fenced/scripts global installs (prose tips like ponytail-help → clean).
+Done:
+- **SG006 context** — MEDIUM only for fenced/scripts global installs
+- **Fence language** — `CodeCandidate.lang` from fence tags; no `_looks_python` / `_looks_js`
 
 Next:
 
-1. **Fence language** — drop `_looks_python` / `_looks_js`; use fence tags on candidates.
-2. **Known misses** — base64/exec, split secrets (`'sk'+'-ant-'`), langs without heuristics (e.g. Ruby).
-3. **Metrics honesty** — report wrong-rule BLOCK + strict rule recall (soft ∩ today).
-4. **OOD-unsafe** — wild/malware recall suite (today OOD is safe FPR only).
-5. **Policy packs** — `default` / `strict` (`fail-on warn` profile).
-6. **PyPI** — publish `aisona-skill-guard` when ready.
+1. **Known misses** — base64/exec, split secrets (`'sk'+'-ant-'`), langs without heuristics (e.g. Ruby).
+2. **Metrics honesty** — report wrong-rule BLOCK + strict rule recall (soft ∩ today).
+3. **OOD-unsafe** — wild/malware recall suite (today OOD is safe FPR only).
+4. **Policy packs** — `default` / `strict` (`fail-on warn` profile).
+5. **PyPI** — publish `aisona-skill-guard` when ready.
 
 ## Not this tool
 

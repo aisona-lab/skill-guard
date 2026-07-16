@@ -12,7 +12,7 @@
 
 ## One-line status
 
-Beta **tagged** (`v0.2.1`). SG006 prose filter shipped (ponytail-help ALLOW). Next product: fence-lang. PyPI deferred.
+Beta **tagged** (`v0.2.1`). SG006 prose filter + fence-lang shipped. Next: known misses / metrics honesty. PyPI deferred.
 
 ---
 
