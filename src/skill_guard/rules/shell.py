@@ -366,22 +366,22 @@ def check(ctx: PackageContext) -> list[Finding]:
             if not scan_text:
                 continue
             for stages in split_pipelines(scan_text):
-                for rule in _PIPELINE_RULES:
-                    evidence = rule.match(stages)
+                for pipe_rule in _PIPELINE_RULES:
+                    evidence = pipe_rule.match(stages)
                     if evidence:
                         findings.append(
                             make_finding(
                                 RuleId.SG003,
-                                rule.severity,
-                                title=rule.title,
+                                pipe_rule.severity,
+                                title=pipe_rule.title,
                                 path=f.relpath,
                                 message=f"Dangerous shell pattern in `{f.relpath}`.",
                                 evidence=evidence,
-                                remediation=rule.remediation,
+                                remediation=pipe_rule.remediation,
                             )
                         )
-        for rule in _WHOLE_RULES:
-            evidence = rule.match(norm)
+        for whole_rule in _WHOLE_RULES:
+            evidence = whole_rule.match(norm)
             if evidence:
                 # Whole-file match position approx for edu filter
                 idx = norm.find(evidence) if evidence else -1
@@ -390,12 +390,12 @@ def check(ctx: PackageContext) -> list[Finding]:
                 findings.append(
                     make_finding(
                         RuleId.SG003,
-                        rule.severity,
-                        title=rule.title,
+                        whole_rule.severity,
+                        title=whole_rule.title,
                         path=f.relpath,
                         message=f"Dangerous shell pattern in `{f.relpath}`.",
                         evidence=evidence,
-                        remediation=rule.remediation,
+                        remediation=whole_rule.remediation,
                     )
                 )
         if f.kind is FileKind.POWERSHELL:

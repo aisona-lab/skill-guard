@@ -6,7 +6,7 @@ Deterministic **pre-install** auditor for [Agent Skills](https://agentskills.io/
 (`SKILL.md` packages). Offline, no skill execution, CI exit codes
 `ALLOW=0 / WARN=1 / BLOCK=2`.
 
-**Status:** `0.2.2` Beta on `main`. PyPI name **`aisona-skill-guard`** (not yet published).
+**Status:** `0.2.3` Beta on `main`. PyPI name **`aisona-skill-guard`** (automated Trusted Publisher via `.github/workflows/publish.yml`).
 
 **Detector freeze:** do not add new SG patterns without a real-scan fixture —
 see [`docs/DETECTOR-FREEZE.md`](docs/DETECTOR-FREEZE.md). Prefer `surface.py`
@@ -67,7 +67,7 @@ Order matches README **Improve next**:
 
 1. ~~P0 real-scan FPs + surface classifier~~ **done** (v0.2.2)
 2. **Detector freeze** in force — `docs/DETECTOR-FREEZE.md`
-3. **PyPI deferred** — `aisona-skill-guard` when token ready
+3. **Distribution** — PyPI Trusted Publisher (`.github/workflows/publish.yml`) + container (`Dockerfile` / `docker-compose.yml`)
 4. Only later: agent-firewall (runtime)
 
 ## Lab context

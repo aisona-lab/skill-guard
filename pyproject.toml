@@ -2,7 +2,7 @@
 # Distribution name (PyPI). CLI entry point stays `skill-guard`.
 # Note: pypi.org/project/skill-guard/ is a different, unrelated package.
 name = "aisona-skill-guard"
-version = "0.2.2"
+version = "0.2.3"
 description = "Audit Agent Skills and packages before they touch your machine. Deterministic checks. Exit codes. No vibes."
 readme = "README.md"
 license = "MIT"
@@ -93,3 +93,7 @@ python_version = "3.12"
 strict = true
 packages = ["skill_guard"]
 mypy_path = "src"
+
+[[tool.mypy.overrides]]
+module = ["yaml", "yaml.*"]
+ignore_missing_imports = true

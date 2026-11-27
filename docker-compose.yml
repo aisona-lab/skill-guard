@@ -1,0 +1,16 @@
+services:
+  skill-guard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: skill-guard:0.2.3
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - ${SCAN_TARGET:-.}:/scan:ro
+    command: ["scan", "/scan", "--fail-on", "block"]

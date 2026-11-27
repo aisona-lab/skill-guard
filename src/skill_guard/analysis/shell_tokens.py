@@ -27,12 +27,12 @@ def tokenize_shell_line(line: str) -> list[str]:
     return [m.group(0) for m in _TOKEN_RE.finditer(line)]
 
 
-def split_pipelines(text: str) -> list[list[str]]:
+def split_pipelines(text: str) -> list[list[list[str]]]:
     """Return pipelines as lists of stage token-lists.
 
     Example: ``curl u | bash`` -> [[["curl","u"], ["bash"]]]
     """
-    pipelines: list[list[str]] = []
+    pipelines: list[list[list[str]]] = []
     for raw_line in text.splitlines():
         # strip comments
         if "#" in raw_line:

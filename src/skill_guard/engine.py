@@ -5,6 +5,7 @@ Never executes skill code. Normalization happens once in load_package.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from pathlib import Path
 
 from skill_guard.config import SkillGuardConfig, apply_config_to_findings, load_config
@@ -60,7 +61,7 @@ def scan_path(
 
 
 def scan_many(
-    paths: list[str | Path],
+    paths: Sequence[str | Path],
     *,
     rules: list[str] | None = None,
     config: SkillGuardConfig | None = None,

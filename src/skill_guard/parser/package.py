@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
+from typing import Any
 
 import yaml
 
@@ -102,7 +103,7 @@ def load_package(path: str | Path) -> PackageContext:
         if not any(f.relpath == skill_md.relpath for f in files):
             files = [skill_md, *files]
 
-    frontmatter: dict = {}
+    frontmatter: dict[str, Any] = {}
     body = ""
     errors: list[str] = []
 
@@ -124,7 +125,7 @@ def load_package(path: str | Path) -> PackageContext:
     )
 
 
-def parse_skill_md(content: str) -> tuple[dict, str, str | None]:
+def parse_skill_md(content: str) -> tuple[dict[str, Any], str, str | None]:
     """Split SKILL.md into frontmatter dict and body. Returns (fm, body, error)."""
     match = _FRONTMATTER_RE.match(content)
     if not match:
@@ -140,7 +141,7 @@ def parse_skill_md(content: str) -> tuple[dict, str, str | None]:
         return {}, body, "empty YAML frontmatter"
     if not isinstance(data, dict):
         return {}, body, "frontmatter must be a YAML mapping"
-    return data, body, None
+    return {str(k): v for k, v in data.items()}, body, None
 
 
 def _collect_raw(root: Path) -> list[tuple[str, str, int]]:

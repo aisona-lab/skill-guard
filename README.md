@@ -11,7 +11,7 @@ Offline · Deterministic · No code execution
 ![Python](https://img.shields.io/badge/python-3.12%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
-[Quick start](#quick-start) · [Real-world results](#real-world-results-v022) · [Rules](#the-10-rules) · [CI](#ci) · [Limitations](LIMITATIONS.md)
+[Quick start](#quick-start) · [Reproducible benchmarks](#reproducible-benchmarks) · [Real-world results](#real-world-results-v023) · [Rules](#the-10-rules) · [Architecture](ARCHITECTURE.md) · [CI](#ci) · [Limitations](LIMITATIONS.md)
 
 </div>
 
@@ -27,6 +27,14 @@ For **teams** gating third-party skills in CI, **skill authors** checking before
 pip install aisona-skill-guard        # or: uv tool install aisona-skill-guard
 
 skill-guard scan ~/.claude/skills/my-skill
+```
+
+Or run in a non-root, read-only container with 1 command:
+
+```bash
+docker build -t skill-guard .
+docker run --rm -v "$PWD:/scan:ro" skill-guard scan /scan
+# or: SCAN_TARGET=./my-skill docker compose run --rm skill-guard
 ```
 
 Every scan ends in one verdict:
@@ -60,7 +68,7 @@ skill-guard  verdict=BLOCK
 
 </details>
 
-## Real-world results (v0.2.2)
+## Real-world results (v0.2.3)
 
 > **0 false BLOCKs across 73 vendored real-world skills** (CI-gated) · **8/8 held-out attack packs blocked**
 
@@ -72,14 +80,27 @@ skill-guard  verdict=BLOCK
 | [last30days-skill](https://github.com/mvanhorn/last30days-skill) (116 files) | 1 | **1** | Large pack + unscoped Bash, real signal |
 | Held-out attacks (ood-unsafe) | 8 | **8/8** | Split keys, b64→shell, … tracked in CI |
 
-Reproduce every gate locally:
+### Reproducible Benchmarks
+
+Measured offline across all 4 suites (`rounds=5`, `warmup=1`, Apple Silicon / Python 3.12):
+
+| Suite | Skills | p50 (ms) | p95 (ms) | FP (BLOCK) | FN (miss) | Recall |
+|-------|-------:|---------:|---------:|-----------:|----------:|-------:|
+| `core` | 26 | 1.150 | 1.682 | 0/9 | 0/17 | 1.000 |
+| `adversarial` | 30 | 0.753 | 0.978 | 0/5 | 0/25 | 1.000 |
+| `ood` (real-world safe) | 73 | 23.245 | 247.654 | **0/73** | — | — |
+| `ood-unsafe` (held-out) | 8 | 0.748 | 0.824 | — | **0/8** | 1.000 |
+
+- **Cost per 1,000 scans:** **`$0.000`** (offline deterministic, 0 API tokens) vs. `~$5.73–$17.19` LLM-as-a-judge reference (weighted corpus avg ~4,480 input + 250 output tokens/skill at `$1/$5` to `$3/$15` per 1M tokens).
+- **Reproduce locally:**
 
 ```bash
+uv run python eval/bench_latency.py
 uv run python eval/run_eval.py --suite all --check
 uv run pytest -q
 ```
 
-Full protocol, thresholds, and what we *don't* claim: [BENCHMARKS](docs/BENCHMARKS.md) · [LIMITATIONS](LIMITATIONS.md)
+Full protocol, thresholds, and system design: [ARCHITECTURE](ARCHITECTURE.md) · [BENCHMARKS](docs/BENCHMARKS.md) · [LIMITATIONS](LIMITATIONS.md)
 
 ## The 10 rules
 
@@ -101,7 +122,7 @@ Examples and nuance per rule: [docs/RULES.md](docs/RULES.md)
 ## CI
 
 ```yaml
-- uses: aisona-lab/skill-guard@v0.2.2
+- uses: aisona-lab/skill-guard@v0.2.3
   with:
     path: ./skills/my-skill
     fail-on: block          # exit 2 only on BLOCK
@@ -129,7 +150,7 @@ suppress: [SG008]
 
 ## Status
 
-Beta (v0.2.2) · CI gates on every push · [detector freeze](docs/DETECTOR-FREEZE.md): no new rules without a real-scan fixture.
+Beta (v0.2.3) · CI gates on every push · [detector freeze](docs/DETECTOR-FREEZE.md): no new rules without a real-scan fixture.
 New project: judge the tables and CI, not star counts.
 
 Part of [aisona-lab](https://github.com/aisona-lab) trust tooling: [prompt-guard](https://github.com/aisona-lab/prompt-guard) · [OrcaI](https://github.com/aisona-lab/OrcaI) · [lazycoder](https://github.com/aisona-lab/lazycoder)
